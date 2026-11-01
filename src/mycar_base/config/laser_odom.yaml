@@ -1,0 +1,13 @@
+rf2o_laser_odometry:
+  ros__parameters:
+    laser_scan_topic: /scan
+    odom_topic: /odom_lidar
+    base_frame_id: base_link
+    odom_frame_id: odom
+    publish_tf: false  # odom -> base_link 只由EKF发布。
+    init_pose_from_topic: ""
+    freq: 20.0  # 处理上限；实际输出跟随雷达，当前约10Hz。
+    linear_variance: 0.0025  # 速度方差初值，单位(m/s)^2，需实测标定。
+    angular_variance: 0.01   # 角速度方差初值，单位(rad/s)^2。
+    scan_timeout: 1.0       # 连续1秒没有有效里程计后退出，底盘随之关闭。
+    startup_timeout: 30.0   # 给雷达和静态TF留出启动时间。

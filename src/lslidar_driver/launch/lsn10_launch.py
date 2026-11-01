@@ -11,6 +11,7 @@ from launch.substitutions import LaunchConfiguration
 def generate_launch_description():
     node_output = LaunchConfiguration('output')
     log_level = LaunchConfiguration('log_level')
+    lidar_port = LaunchConfiguration('lidar_port')
     driver_config = os.path.join(get_package_share_directory('lslidar_driver'),'config','lslidar_n10_uart.yaml')
     rviz_config = os.path.join(get_package_share_directory('lslidar_driver'),'rviz','lslidar_x10.rviz')
 
@@ -25,7 +26,7 @@ def generate_launch_description():
                                     node_name='lslidar_driver_node',
                                     node_namespace='x10', # 与对应yaml文件中命名空间一致
                                     output=node_output,
-                                    parameters=[driver_config],
+                                    parameters=[driver_config, {'serial_port': lidar_port}],
                                     arguments=['--ros-args', '--log-level', log_level],
                                     )
         rviz_node = Node(
@@ -40,7 +41,7 @@ def generate_launch_description():
                                     executable='lslidar_driver_node',
                                     name='lslidar_driver_node',
                                     namespace='x10', # 与对应yaml文件中命名空间一致
-                                    parameters=[driver_config],
+                                    parameters=[driver_config, {'serial_port': lidar_port}],
                                     output=node_output,
                                     arguments=['--ros-args', '--log-level', log_level],
                                     )
@@ -55,5 +56,6 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('output', default_value='screen'),
         DeclareLaunchArgument('log_level', default_value='info'),
+        DeclareLaunchArgument('lidar_port', default_value='/dev/ttyCH343USB0'),
         driver_node
     ])

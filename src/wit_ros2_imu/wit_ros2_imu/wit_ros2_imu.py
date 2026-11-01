@@ -18,9 +18,9 @@ GYRO_FRAME = 0x52
 ANGLE_FRAME = 0x53
 MAG_FRAME = 0x54
 
-DEFAULT_PORT = "/dev/ttyUSB1"
+DEFAULT_PORT = "/dev/ttyTHS1"
 DEFAULT_BAUD = 115200
-DEFAULT_RATE_HZ = 200
+DEFAULT_RATE_HZ = 20
 GRAVITY = 9.8
 OUTPUT_ACC_GYRO_ANGLE = 0x000E
 
@@ -145,7 +145,8 @@ class IMUDriverNode(Node):
         self.imu_msg = Imu()
         self.imu_msg.header.frame_id = "imu_link"
         # 初始协方差，避免EKF把未知精度当作接近零噪声；可按实测噪声调整。
-        self.imu_msg.orientation_covariance = [0.01, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.01]
+        # 姿态尚未验证，-1 表示不可用于融合；原始角度仍发布到 /imu/angle。
+        self.imu_msg.orientation_covariance = [-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.imu_msg.angular_velocity_covariance = [0.0004, 0.0, 0.0, 0.0, 0.0004, 0.0, 0.0, 0.0, 0.0004]
         self.imu_msg.linear_acceleration_covariance = [0.04, 0.0, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 0.04]
         self.angle_msg = Vector3Stamped()

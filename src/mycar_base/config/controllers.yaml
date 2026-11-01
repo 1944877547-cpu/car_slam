@@ -16,8 +16,7 @@ diff_drive_controller:
     wheel_separation_multiplier: 1.0
     left_wheel_radius_multiplier: 1.0
     right_wheel_radius_multiplier: 1.0
-    # 无编码器：原始里程计由命令估计，IMU 在 EKF 中提供航向。
-    open_loop: true
+    open_loop: true  # 无编码器；/odom_raw只作指令估算对照，不进入EKF。
     position_feedback: true
     enable_odom_tf: false
     publish_rate: 50.0
@@ -28,7 +27,7 @@ diff_drive_controller:
     pose_covariance_diagonal: [1.0, 1.0, 1000000.0, 1000000.0, 1000000.0, 1.0]
     twist_covariance_diagonal: [0.04, 0.001, 1000000.0, 1000000.0, 1000000.0, 1.0]
     linear.x.has_velocity_limits: true
-    linear.x.max_velocity: 0.20
+    linear.x.max_velocity: 0.20  # 底盘最终指令限速
     linear.x.min_velocity: -0.20
     angular.z.has_velocity_limits: true
     angular.z.max_velocity: 1.20

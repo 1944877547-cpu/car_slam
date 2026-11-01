@@ -9,24 +9,25 @@ ekf_filter_node:
     odom_frame: odom
     base_link_frame: base_link
     world_frame: odom
-    # 仅取命令估计的前向速度、非完整约束vy=0；不融合其位置和航向。
+    # 平移速度来自连续激光扫描，转向角速度融合激光与IMU。
+    # 同一次扫描的位置和速度相关，只融合速度，避免重复使用同一信息。
     # 顺序：x y z / roll pitch yaw / vx vy vz / vroll vpitch vyaw / ax ay az。
-    odom0: /odom_raw
+    odom0: /odom_lidar
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true,  false,
-                   false, false, false,
+                   false, false, true,
                    false, false, false]
     odom0_queue_size: 10
     odom0_differential: false
-    # 使用IMU的yaw和z轴角速度，不使用加速度积分位置。
+    # 姿态角与静止重力方向尚不一致，先仅融合角速度，不融合欧拉角。
     imu0: /imu/data
     imu0_config: [false, false, false,
-                  false, false, true,
+                  false, false, false,
                   false, false, false,
                   false, false, true,
                   false, false, false]
     imu0_queue_size: 20
     imu0_differential: false
-    imu0_relative: true
+    imu0_relative: false
     imu0_remove_gravitational_acceleration: false

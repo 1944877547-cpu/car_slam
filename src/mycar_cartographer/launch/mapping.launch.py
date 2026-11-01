@@ -12,10 +12,11 @@ from launch_ros.actions import Node
 def generate_launch_description():
     base_share = get_package_share_directory('mycar_base')
     cartographer_share = get_package_share_directory('mycar_cartographer')
-    lidar_share = get_package_share_directory('lslidar_driver')
 
     use_sim_time = LaunchConfiguration('use_sim_time')
     serial_port = LaunchConfiguration('serial_port')
+    lidar_port = LaunchConfiguration('lidar_port')
+    start_lidar = LaunchConfiguration('start_lidar')
     baud_rate = LaunchConfiguration('baud_rate')
     max_rpm = LaunchConfiguration('max_rpm')
     max_pwm = LaunchConfiguration('max_pwm')
@@ -23,12 +24,15 @@ def generate_launch_description():
     imu_baud = LaunchConfiguration('imu_baud')
     imu_rate = LaunchConfiguration('imu_rate')
     start_rviz = LaunchConfiguration('start_rviz')
+    start_camera = LaunchConfiguration('start_camera')
 
     base = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(base_share, 'launch', 'base.launch.py')),
         launch_arguments={
             'serial_port': serial_port,
+            'lidar_port': lidar_port,
+            'start_lidar': start_lidar,
             'baud_rate': baud_rate,
             'max_rpm': max_rpm,
             'max_pwm': max_pwm,
@@ -37,12 +41,6 @@ def generate_launch_description():
             'imu_rate': imu_rate,
             'use_sim_time': use_sim_time,
         }.items(),
-    )
-
-    lidar = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(lidar_share, 'launch', 'lsn10_launch.py')),
-        launch_arguments={'output': 'screen', 'log_level': 'warn'}.items(),
     )
 
     cartographer = Node(
@@ -68,6 +66,14 @@ def generate_launch_description():
         arguments=['-resolution', '0.05', '-publish_period_sec', '1.0'],
     )
 
+    # 建图时打开普通 RGB，相机单独运行，退出不会关闭建图。
+    camera = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(cartographer_share, 'launch', 'camera_rgb.launch.py')),
+        condition=IfCondition(start_camera),
+        launch_arguments={'use_sim_time': use_sim_time}.items(),
+    )
+
     rviz = Node(
         package='rviz2',
         executable='rviz2',
@@ -79,17 +85,21 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
-        DeclareLaunchArgument('serial_port', default_value='/dev/ttyUSB0'),
+        DeclareLaunchArgument('serial_port', default_value='/dev/ttyCH341USB0'),
+        DeclareLaunchArgument('lidar_port', default_value='/dev/ttyCH343USB0'),
+        DeclareLaunchArgument('start_lidar', default_value='true'),
         DeclareLaunchArgument('baud_rate', default_value='115200'),
         DeclareLaunchArgument('max_rpm', default_value='100.0'),
         DeclareLaunchArgument('max_pwm', default_value='3599'),
-        DeclareLaunchArgument('imu_port', default_value='/dev/ttyUSB1'),
+        DeclareLaunchArgument('imu_port', default_value='/dev/ttyTHS1'),
         DeclareLaunchArgument('imu_baud', default_value='115200'),
-        DeclareLaunchArgument('imu_rate', default_value='100'),
+        DeclareLaunchArgument('imu_rate', default_value='20'),
         DeclareLaunchArgument('start_rviz', default_value='true'),
+        DeclareLaunchArgument('start_camera', default_value='true',
+                              description='Start Orbbec RGB camera'),
         base,
-        lidar,
         cartographer,
         occupancy_grid,
+        camera,
         rviz,
     ])

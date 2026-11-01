@@ -5,3 +5,5 @@
 *.pyc
 /.vscode/
 /nx_build_*.log
+/Log/
+/*_crash_stack_trace_*.log

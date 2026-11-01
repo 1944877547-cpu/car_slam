@@ -11,7 +11,6 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     base_share = get_package_share_directory('mycar_base')
-    lidar_share = get_package_share_directory('lslidar_driver')
     nav_share = get_package_share_directory('mycar_navigation2')
     nav2_share = get_package_share_directory('nav2_bringup')
 
@@ -19,6 +18,8 @@ def generate_launch_description():
     map_yaml = LaunchConfiguration('map')
     params_file = LaunchConfiguration('params_file')
     serial_port = LaunchConfiguration('serial_port')
+    lidar_port = LaunchConfiguration('lidar_port')
+    start_lidar = LaunchConfiguration('start_lidar')
     baud_rate = LaunchConfiguration('baud_rate')
     max_rpm = LaunchConfiguration('max_rpm')
     max_pwm = LaunchConfiguration('max_pwm')
@@ -32,6 +33,8 @@ def generate_launch_description():
             os.path.join(base_share, 'launch', 'base.launch.py')),
         launch_arguments={
             'serial_port': serial_port,
+            'lidar_port': lidar_port,
+            'start_lidar': start_lidar,
             'baud_rate': baud_rate,
             'max_rpm': max_rpm,
             'max_pwm': max_pwm,
@@ -40,12 +43,6 @@ def generate_launch_description():
             'imu_rate': imu_rate,
             'use_sim_time': use_sim_time,
         }.items(),
-    )
-
-    lidar = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(lidar_share, 'launch', 'lsn10_launch.py')),
-        launch_arguments={'output': 'screen', 'log_level': 'warn'}.items(),
     )
 
     nav2 = IncludeLaunchDescription(
@@ -77,16 +74,17 @@ def generate_launch_description():
             'map', default_value=os.path.join(nav_share, 'maps', 'map.yaml')),
         DeclareLaunchArgument(
             'params_file', default_value=os.path.join(nav_share, 'param', 'nav2_params.yaml')),
-        DeclareLaunchArgument('serial_port', default_value='/dev/ttyUSB0'),
+        DeclareLaunchArgument('serial_port', default_value='/dev/ttyCH341USB0'),
+        DeclareLaunchArgument('lidar_port', default_value='/dev/ttyCH343USB0'),
+        DeclareLaunchArgument('start_lidar', default_value='true'),
         DeclareLaunchArgument('baud_rate', default_value='115200'),
         DeclareLaunchArgument('max_rpm', default_value='100.0'),
         DeclareLaunchArgument('max_pwm', default_value='3599'),
-        DeclareLaunchArgument('imu_port', default_value='/dev/ttyUSB1'),
+        DeclareLaunchArgument('imu_port', default_value='/dev/ttyTHS1'),
         DeclareLaunchArgument('imu_baud', default_value='115200'),
-        DeclareLaunchArgument('imu_rate', default_value='100'),
+        DeclareLaunchArgument('imu_rate', default_value='20'),
         DeclareLaunchArgument('start_rviz', default_value='true'),
         base,
-        lidar,
         nav2,
         rviz,
     ])
