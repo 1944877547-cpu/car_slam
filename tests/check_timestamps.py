@@ -66,7 +66,7 @@ def main():
         if max(ages) > limit:
             errors.append(topic + ': excessive message age')
 
-    # RF2O的顺时针数组在内部反转，参考时间是原扫描最后一束；不能改成发布时刻。
+    # 正角度扫描沿用输入时间；顺时针扫描经RF2O反转后取最后一束时间。
     scans = samples['/scan']
     laser = samples['/odom_lidar']
     if scans and laser:
@@ -99,6 +99,7 @@ def main():
             failure = ''
             for s, _ in scans[-min(20, len(scans)-5):-2]:
                 first = ns(s.header.stamp)
+                # time_increment为0时只能检查参考时间，无法验证整圈的采样时间。
                 last = first + round((len(s.ranges)-1)*s.time_increment*1e9)
                 checked += 1
                 try:

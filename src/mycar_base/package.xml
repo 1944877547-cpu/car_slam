@@ -2,7 +2,7 @@
 <package format="3">
   <name>mycar_base</name>
   <version>0.1.0</version>
-  <description>HEX PWM differential-drive hardware with laser odometry and IMU fusion.</description>
+  <description>HEX RPM differential-drive hardware with laser odometry and IMU fusion.</description>
   <maintainer email="yiheng@example.com">yiheng</maintainer>
   <license>Apache-2.0</license>
 

@@ -22,7 +22,6 @@ def generate_launch_description():
     start_lidar = LaunchConfiguration('start_lidar')
     baud_rate = LaunchConfiguration('baud_rate')
     max_rpm = LaunchConfiguration('max_rpm')
-    max_pwm = LaunchConfiguration('max_pwm')
     imu_port = LaunchConfiguration('imu_port')
     imu_baud = LaunchConfiguration('imu_baud')
     imu_rate = LaunchConfiguration('imu_rate')
@@ -37,7 +36,6 @@ def generate_launch_description():
             'start_lidar': start_lidar,
             'baud_rate': baud_rate,
             'max_rpm': max_rpm,
-            'max_pwm': max_pwm,
             'imu_port': imu_port,
             'imu_baud': imu_baud,
             'imu_rate': imu_rate,
@@ -79,7 +77,6 @@ def generate_launch_description():
         DeclareLaunchArgument('start_lidar', default_value='true'),
         DeclareLaunchArgument('baud_rate', default_value='115200'),
         DeclareLaunchArgument('max_rpm', default_value='100.0'),
-        DeclareLaunchArgument('max_pwm', default_value='1200'),
         DeclareLaunchArgument('imu_port', default_value='/dev/ttyTHS1'),
         DeclareLaunchArgument('imu_baud', default_value='115200'),
         DeclareLaunchArgument('imu_rate', default_value='20'),

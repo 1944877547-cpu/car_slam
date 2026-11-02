@@ -4,6 +4,6 @@
     name="mycar_base/MyCarSystem"
     type="mycar_base::MyCarSystem"
     base_class_type="hardware_interface::SystemInterface">
-    <description>HEX PWM differential-drive hardware without encoders.</description>
+    <description>HEX RPM differential-drive hardware; encoder control stays on STM32.</description>
   </class>
 </library>

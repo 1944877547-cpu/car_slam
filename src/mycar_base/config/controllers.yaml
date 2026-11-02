@@ -16,7 +16,7 @@ diff_drive_controller:
     wheel_separation_multiplier: 1.0
     left_wheel_radius_multiplier: 1.0
     right_wheel_radius_multiplier: 1.0
-    open_loop: true  # 无编码器；/odom_raw只作指令估算对照，不进入EKF。
+    open_loop: true  # ROS不接收轮反馈；/odom_raw只作指令估算对照，不进入EKF。
     position_feedback: true
     enable_odom_tf: false
     publish_rate: 50.0

@@ -19,7 +19,6 @@ def generate_launch_description():
         'imu_baud': '115200',
         'imu_rate': '20',
         'max_rpm': '100.0',
-        'max_pwm': '1200',
         'lidar_port': '/dev/ttyCH343USB0',
         'start_lidar': 'true',
         'use_sim_time': 'false',
@@ -31,7 +30,6 @@ def generate_launch_description():
         ' serial_port:=', args['serial_port'],
         ' baud_rate:=', args['baud_rate'],
         ' max_rpm:=', args['max_rpm'],
-        ' max_pwm:=', args['max_pwm'],
     ]), value_type=str)
 
     control = Node(

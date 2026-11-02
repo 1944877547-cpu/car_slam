@@ -20,7 +20,6 @@
 #define LSLIDAR_X10_DRIVER_HPP
 
 #include <vector>
-#include "lslidar_driver/n10_scan.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "sensor_msgs/msg/multi_echo_laser_scan.hpp"
 
@@ -86,9 +85,6 @@ namespace lslidar_driver {
         bool initAngleConfig();
 
         void publishLiadrData();
-
-        void publishN10(const sensor_msgs::msg::LaserScan& scan);
-        std::unique_ptr<N10Scan> n10_scan_;
 
         void publishMultiEchoLaserScan();
 

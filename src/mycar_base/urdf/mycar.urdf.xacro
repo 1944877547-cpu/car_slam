@@ -3,7 +3,6 @@
   <xacro:arg name="serial_port" default="/dev/ttyUSB0"/>
   <xacro:arg name="baud_rate" default="115200"/>
   <xacro:arg name="max_rpm" default="100.0"/>
-  <xacro:arg name="max_pwm" default="1200"/>
 
   <xacro:property name="wheel_radius" value="0.0325"/>
   <xacro:property name="wheel_width" value="0.025"/>
@@ -87,11 +86,8 @@
       <plugin>mycar_base/MyCarSystem</plugin>
       <param name="serial_port">$(arg serial_port)</param>
       <param name="baud_rate">$(arg baud_rate)</param>
-      <!-- max_rpm对应最大允许PWM（默认1200）的实测轮速，目前100只是待标定初值。 -->
+      <!-- 最大目标RPM；编码器测速与轮速PI在STM32内部完成。 -->
       <param name="max_rpm">$(arg max_rpm)</param>
-      <param name="max_pwm">$(arg max_pwm)</param>
-      <param name="left_pwm_scale">1.0</param>
-      <param name="right_pwm_scale">1.0</param>
       <param name="feedback_timeout_ms">500</param>
     </hardware>
     <joint name="left_wheel_joint">

@@ -47,7 +47,7 @@ source ~/car_swarm/install/local_setup.bash
 
 当前导航指令上限：线速度 **0.20 m/s（20 cm/s）**，转向 **1.20 rad/s（约 69°/s）**。导航线加速度为 0.50 m/s²，角加速度为 2.00 rad/s²；实际速度仍需按实车标定。
 
-串口直接传实际PWM，默认范围为 **−1200～+1200**。STM32新固件只限幅，不增加起步补偿、二次缩放或额外斜坡；两端需配套更新。`max_rpm=100`仍是PWM=1200时轮速的待标定初值。
+串口下发左右目标RPM（字段单位0.1 RPM，默认最大100 RPM），编码器和PI只在STM32内部使用。两端需配套更新，不能继续发送旧PWM包；下位机`ENC_CPR`默认0，接线并填入实测每圈计数后才驱动电机。定位仍用雷达和IMU。
 
 膨胀半径等避障参数以 `src/mycar_navigation2/param/nav2_params.yaml` 的当前设置为准。
 
@@ -156,18 +156,20 @@ ros2 launch mycar_cartographer camera_rgb.launch.py
 
 单独启动相机只发布 `/camera/color/image_raw` 等话题；需要显示画面时使用第 4 步的建图入口。
 
-当前底盘没有轮编码器，平移里程计来自 `/scan → RF2O → /odom_lidar`；EKF 融合激光平面速度、角速度与 IMU 角速度后输出 `/odom`。`/odom_raw` 只保留为指令估算对照，不进入 EKF。轮径、轮距、PWM 与实际车速的对应关系仍需实车标定。
+编码器仅在STM32内部控制轮速；平移里程计来自 `/scan → RF2O → /odom_lidar`，EKF 融合激光平面速度、角速度与 IMU 角速度后输出 `/odom`。`/odom_raw` 只保留为指令估算对照，不进入 EKF。轮径、轮距、每圈计数和PI参数仍需实车标定。
 
 底盘入口已包含雷达驱动。若雷达驱动已单独运行，可加 `start_lidar:=false` 复用其 `/scan`。首次启动等待扫描/TF 最多 30 秒，之后连续 1 秒无有效激光里程计将关闭当前底盘启动组；不会回退到指令估算。
 
 ## N10 扫描检查
 
-雷达直接发布 `/scan`，保留原始采集时序，频率维持约10Hz。
+雷达按 `ros_car_diff` 原驱动发布 `/scan`，使用整圈末端时间，频率维持约10Hz。
 
 ```bash
 timeout 10s ros2 topic hz /scan
 ros2 topic echo /scan --once --field scan_time
+ros2 topic echo /scan --once --field time_increment
 ```
 
-`scan_time` 通常约0.1秒。IMU继续用于EKF融合，不再经过独立的扫描运动补偿节点。
+`scan_time` 和 `time_increment` 均为0（原驱动未提供），实际频率看 `topic hz`。
+IMU继续用于EKF融合，不经过独立的扫描运动补偿节点。
 外部雷达驱动已提供 `/scan` 时，启动参数添加 `start_lidar:=false`。

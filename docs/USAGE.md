@@ -4,13 +4,13 @@
 
 ROS 2 Humble 双轮差速小车上位机，配合 `~/STM32Cube/car_swarm` 的 STM32 + TB6612 固件。
 
-- `mycar_base`：差速控制、HEX PWM 串口、雷达、激光里程计、IMU 和 EKF。
+- `mycar_base`：差速控制、HEX RPM 串口、雷达、激光里程计、IMU 和 EKF。
 - `rf2o_laser_odometry`：RF2O 扫描匹配，输入 `/scan`，输出 `/odom_lidar`，保留上游源码和许可证。
 - `mycar_cartographer`：N10 雷达 + IMU 建图。
 - `mycar_navigation2`：Nav2 导航。
 - `wit_ros2_imu`：从 `imu_test` 当前使用的维特驱动复制而来。
 
-**不需要轮编码器。平移来自激光扫描匹配，转向角速度融合激光与 IMU，EKF 输出 `/odom`。** 运动指令只负责控制电机，`/odom_raw` 保留为指令估算对照，不再进入 EKF。激光速度与位置来自同一次匹配，EKF 只融合速度，避免重复使用同一信息。
+**ROS定位不使用轮编码器：平移来自激光扫描匹配，转向角速度融合激光与 IMU，EKF 输出 `/odom`。** 编码器仅用于STM32轮速PI闭环，`/odom_raw` 保留为指令估算对照，不进入 EKF。激光速度与位置来自同一次匹配，EKF 只融合速度，避免重复使用同一信息。
 
 IMU 不做加速度双积分位置；当前模块姿态尚未验证，EKF 不融合它的姿态。`/imu/data` 姿态协方差首项保持 `-1`，`/imu/angle` 仍提供原始角度供核对。
 
@@ -94,24 +94,24 @@ ros2 topic pub -r 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.05}, angul
 ## 首次需要调整
 
 - 轮半径初值 **0.0325 m**、轮距初值 **0.125 m**：同时修改 `src/mycar_base/config/controllers.yaml` 和 `src/mycar_base/urdf/mycar.urdf.xacro`。
-- `max_pwm` 默认 **1200**，与STM32的实际输出上限一致；`max_rpm` 默认 **100**，表示PWM=1200时轮速的待标定初值，需实测校准；启动时可加 `max_rpm:=实际值`。左右差异可在 Xacro 中调整 `left_pwm_scale`、`right_pwm_scale`。
+- `max_rpm` 默认 **100**，是左右轮目标RPM上限；不再在ROS中把RPM映射成PWM。编码器每圈计数、方向和PI参数在STM32内标定。上位机不接收实测轮速或编码器计数。
 - IMU 当前安装为 x 向车体右侧、y 向车尾、z 向下，Xacro 的 `imu_joint` 已设置 `rpy="3.1415926536 0 -1.5707963268"`。从上方看车体逆时针转动时，原始 IMU 的 z 角速度为负，经 TF 转换后的 `/odom` z 角速度为正。与车体同向的 `imu_tracking` 与传感器原点重合，供 Cartographer 使用；安装位置需在 `imu_tracking_joint` 的 `xyz` 中按实车测量。
 - IMU 默认请求 20 Hz，与当前实测一致；用 `ros2 topic hz /imu/data` 验证实际频率。当前设备在请求 100 Hz 后仍输出 20 Hz，且未回复寄存器查询；需要进一步核对 NX TX 到 IMU RX 的接线以及模块型号和配置协议，再提高 `imu_rate`。波特率为 115200。
 - 激光安装位置、朝向在 Xacro 的 `laser_joint` 中测量设置；当前保留 `xyz="0 0 0.2"`，表示相对 `base_link` 高 20cm。
 - `src/mycar_base/config/laser_odom.yaml` 中的 `linear_variance`、`angular_variance` 是方差初值，按实际匹配噪声调整。
-- 激光里程计不能代替电机转速闭环；PWM 与实际车速的换算仍需标定。
+- STM32用编码器做轮速闭环；定位仍来自RF2O和IMU，`/odom_raw`保持指令估算对照，不能用于融合。
 
 ## STM32 通信
 
-发送和回包都是8字节二进制，左右PWM为有符号16位大端数，范围 **−1200～+1200**：
+发送和ACK都是8字节HEX，左右字段为有符号16位大端数，**单位0.1 RPM**，有效目标范围为−100～+100 RPM：
 
 ```text
 AA 55 左高 左低 右高 右低 0D 0A
-AA 55 03 E8 FC 18 0D 0A    左+1000，右-1000
+AA 55 01 2C FE D4 0D 0A    左+30.0 RPM，右-30.0 RPM
 AA 55 00 00 00 00 0D 0A    停车
 ```
 
-上位机以50 Hz发送。STM32直接执行限幅后的PWM：收到600输出600，收到1200输出1200；不叠加起步值、不二次缩放、不额外增加斜坡。TIM3周期仍为3599，最大允许占空比约33.3%。STM32超过500 ms未收到有效包会停车，回包只确认实际施加的逻辑PWM，不是实测轮速。左右顺序与当前STM32固件一致，方向修正在STM32的 `L_REV`、`R_REV` 中完成。ROS默认值和STM32新固件需配套更新。
+上位机以50 Hz下发目标RPM。STM32用PB6/PB7（左A/B）、PB8/PB9（右A/B）中断计数，TIM2以100 Hz做双轮PI控制，TIM3仍在PA6/PA7输出PWM，周期3599、输出上限1200。0和500ms通信超时停车。ACK仅回显接受的目标RPM，不是实测速度；与旧PWM字段不兼容，必须配套更新两端。`ENC_CPR`默认0，接线并实测车轮每圈四倍频计数后填写，未标定时电机保持关闭。引脚信号按3.3V TTL处理，具体供电以编码器规格为准。
 
 ## 建图时显示 RGB 相机
 
@@ -164,24 +164,25 @@ python3 tests/check_laser_odometry.py
 
 ## N10 扫描输出
 
-雷达直接发布 `/scan`，保留按采集顺序排列的原始距离、首束时间和逐点时间间隔。
-N10 为顺时针扫描，`angle_increment` 为负，`time_increment` 为正；RF2O 内部整理角度顺序，不做运动补偿。
-保留整圈周期估计和初始不完整圈过滤，名义扫描频率仍为10Hz，实际频率以设备输出为准。
-N10 当前协议没有硬件时间戳，使用主机接收时刻和协议采样率估计扫描时间，不额外叠加时间偏移。
+N10 的组帧、角度转换和时间处理与 `ros_car_diff` 原驱动一致，整圈点云转换为 `/scan`。
+角度按 `-π` 到 `π` 排列，`angle_increment` 为正；不再使用新增的 N10 角度格子重建或按4500点/秒回推逐点时间。
+扫描时间戳使用原驱动估计的整圈末端时间，`time_increment` 和 `scan_time` 均为0，表示未提供逐点时间间隔和整圈周期。
+N10 仍在接收线程发布完整一圈，避免共享缓冲被下一圈覆盖；不做运动补偿。
 
 ```bash
 timeout 10s ros2 topic hz /scan
 ros2 topic echo /scan --once --field scan_time
-python3 tests/check_laser_odometry.py --clockwise
+ros2 topic echo /scan --once --field time_increment
 ```
 
-`scan_time` 通常约0.1秒；`N10Plus_hz` 仅用于N10Plus配置，不能改变N10的真实转速。
+实际扫描频率仍约10Hz，以 `ros2 topic hz /scan` 为准，不能由值为0的 `scan_time` 计算。
+`N10Plus_hz` 仅用于N10Plus配置，不能改变N10的真实转速。
 
 ## 时间戳检查
 
 实车运行统一使用系统时钟（`use_sim_time:=false`），雷达、IMU和算法都在NX上打ROS时间戳。
-`/scan` 为首束时间，最后一束为 `stamp + (N-1) * time_increment`；10Hz整圈发布时首束已过去约0.1秒，这是正常采集时长。
-RF2O保留扫描参考时间（N10取最后一束），不会用计算完成时刻覆盖测量时间。
+`/scan` 沿用 `ros_car_diff` 的整圈末端时间，不宣称精确的首束采样时间；逐点时间未提供，无法按消息字段恢复首末束采样时刻。
+RF2O保留输入扫描的时间戳，不会用计算完成时刻覆盖它。
 IMU使用有效帧的接收时刻，`/imu/data`取本组陀螺仪帧的接收时间，缺少本组加速度/陀螺仪帧时不发布旧测量。
 一次读到多组时解析所有数据、发布最新完整组，保留未完成帧供下次接收继续解析；不按固定字节数清空串口，不回推字节传输耗时。
 EKF保留0.5秒历史处理迟到的激光结果，再预测到当前时刻，`/odom`和`odom → base_link`使用相同时间戳。
@@ -193,5 +194,6 @@ AMCL的`map → odom`含`transform_tolerance`的前置有效期，静态TF时间
 python3 tests/check_timestamps.py --seconds 10
 ```
 
-输出`passed: true`表示本次采样的时钟设置、时间顺序、RF2O扫描时间对应关系、里程计TF和扫描TF覆盖检查通过。
+输出`passed: true`表示本次采样的时钟设置、时间顺序、RF2O扫描时间对应关系、里程计TF和扫描参考时间的TF覆盖检查通过。
+当前N10未提供逐点时间，该检查不能验证整圈内每一束的TF覆盖。
 雷达和此IMU协议均未提供可用的硬件采样时间，这项检查不能证明物理采样已硬同步；内部滤波、USB缓冲等残余延迟需在NX实测。

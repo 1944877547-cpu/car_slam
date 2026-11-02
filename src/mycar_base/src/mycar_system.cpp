@@ -80,20 +80,16 @@ hardware_interface::CallbackReturn MyCarSystem::on_init(const hardware_interface
     serial_port_ = it == info_.hardware_parameters.end() ? "/dev/ttyUSB0" : it->second;
     baud_rate_ = integer(info_, "baud_rate", 115200);
     max_rpm_ = number(info_, "max_rpm", 100.0);
-    max_pwm_ = integer(info_, "max_pwm", 1200);
-    scale_[0] = number(info_, "left_pwm_scale", 1.0);
-    scale_[1] = number(info_, "right_pwm_scale", 1.0);
     feedback_timeout_ms_ = integer(info_, "feedback_timeout_ms", 500);
     baud_value(baud_rate_);
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger, "Invalid hardware parameter: %s", e.what());
     return CallbackReturn::ERROR;
   }
-  if (!std::isfinite(max_rpm_) || max_rpm_ <= 0.0 || max_pwm_ < 1 || max_pwm_ > 1200 ||
-    !std::isfinite(scale_[0]) || !std::isfinite(scale_[1]) ||
-    scale_[0] <= 0.0 || scale_[1] <= 0.0 || feedback_timeout_ms_ <= 0)
+  if (!std::isfinite(max_rpm_) || max_rpm_ <= 0.0 || max_rpm_ > 100.0 ||
+    feedback_timeout_ms_ <= 0)
   {
-    RCLCPP_ERROR(logger, "Invalid RPM/PWM range or wheel scale (max_pwm must be 1..1200)");
+    RCLCPP_ERROR(logger, "Invalid RPM limit or timeout (max_rpm must be >0 and <=100)");
     return CallbackReturn::ERROR;
   }
   return CallbackReturn::SUCCESS;
@@ -131,7 +127,7 @@ hardware_interface::CallbackReturn MyCarSystem::on_configure(const rclcpp_lifecy
     return hardware_interface::CallbackReturn::ERROR;
   }
   last_feedback_time_ = std::chrono::steady_clock::now();
-  RCLCPP_INFO(logger, "HEX PWM chassis %s @ %d, no wheel encoders", serial_port_.c_str(), baud_rate_);
+  RCLCPP_INFO(logger, "HEX RPM chassis %s @ %d; encoder control stays on STM32", serial_port_.c_str(), baud_rate_);
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -158,11 +154,11 @@ hardware_interface::return_type MyCarSystem::read(const rclcpp::Time &, const rc
   const auto now = std::chrono::steady_clock::now();
   const auto silent = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_feedback_time_);
   if (silent.count() > feedback_timeout_ms_ && !feedback_timeout_reported_) {
-    RCLCPP_WARN(logger, "No valid PWM acknowledgement for %d ms", feedback_timeout_ms_);
+    RCLCPP_WARN(logger, "No valid RPM acknowledgement for %d ms", feedback_timeout_ms_);
     feedback_timeout_reported_ = true;
   }
   // 这里是指令估计，只供关节显示；open_loop 控制器不把它当编码器反馈。
-  // 不从 PWM 回包计算轮速，也不把 IMU 加速度二次积分成位置。
+  // 不从RPM确认包计算实测轮速；定位仍由激光和IMU负责。
   const bool recent = now - last_send_time_ < std::chrono::milliseconds(500);
   for (std::size_t i = 0; i < 2; ++i) {
     wheel_velocity_[i] = recent ? sent_[i] : 0.0;
@@ -217,15 +213,14 @@ bool MyCarSystem::send_wheel_command(double left, double right)
     return false;
   }
   const std::array<double, 2> command{{left, right}};
-  std::array<int16_t, 2> pwm{};
+  std::array<int16_t, 2> rpm{};
   for (std::size_t i = 0; i < 2; ++i) {
-    // max_rpm对应最大允许PWM的轮速；只在此处换算，下位机直接执行PWM。
-    const double rpm = std::clamp(command[i] * rpm_per_rad_s, -max_rpm_, max_rpm_);
-    const double duty = std::clamp(rpm / max_rpm_ * scale_[i], -1.0, 1.0);
-    pwm[i] = static_cast<int16_t>(std::lround(duty * max_pwm_));
+    // 单位0.1 RPM，保留低速指令；PWM和编码器PI全部由STM32处理。
+    const double value = std::clamp(command[i] * rpm_per_rad_s, -max_rpm_, max_rpm_);
+    rpm[i] = static_cast<int16_t>(std::lround(value * 10.0));
   }
-  const uint16_t l = static_cast<uint16_t>(pwm[0]);
-  const uint16_t r = static_cast<uint16_t>(pwm[1]);
+  const uint16_t l = static_cast<uint16_t>(rpm[0]);
+  const uint16_t r = static_cast<uint16_t>(rpm[1]);
   // 与当前 STM32 car_swarm 一致：大端、有符号16位、固定8字节。
   const std::array<uint8_t, 8> packet{{0xAA, 0x55,
     static_cast<uint8_t>(l >> 8), static_cast<uint8_t>(l),
@@ -250,7 +245,7 @@ bool MyCarSystem::send_wheel_command(double left, double right)
     }
   }
   for (std::size_t i = 0; i < 2; ++i) {
-    sent_[i] = static_cast<double>(pwm[i]) / max_pwm_ / scale_[i] * max_rpm_ / rpm_per_rad_s;
+    sent_[i] = static_cast<double>(rpm[i]) * 0.1 / rpm_per_rad_s;
   }
   last_send_time_ = std::chrono::steady_clock::now();
   return true;
