@@ -80,7 +80,7 @@ hardware_interface::CallbackReturn MyCarSystem::on_init(const hardware_interface
     serial_port_ = it == info_.hardware_parameters.end() ? "/dev/ttyUSB0" : it->second;
     baud_rate_ = integer(info_, "baud_rate", 115200);
     max_rpm_ = number(info_, "max_rpm", 100.0);
-    max_pwm_ = integer(info_, "max_pwm", 3599);
+    max_pwm_ = integer(info_, "max_pwm", 1200);
     scale_[0] = number(info_, "left_pwm_scale", 1.0);
     scale_[1] = number(info_, "right_pwm_scale", 1.0);
     feedback_timeout_ms_ = integer(info_, "feedback_timeout_ms", 500);
@@ -89,11 +89,11 @@ hardware_interface::CallbackReturn MyCarSystem::on_init(const hardware_interface
     RCLCPP_ERROR(logger, "Invalid hardware parameter: %s", e.what());
     return CallbackReturn::ERROR;
   }
-  if (!std::isfinite(max_rpm_) || max_rpm_ <= 0.0 || max_pwm_ < 1 || max_pwm_ > 3599 ||
+  if (!std::isfinite(max_rpm_) || max_rpm_ <= 0.0 || max_pwm_ < 1 || max_pwm_ > 1200 ||
     !std::isfinite(scale_[0]) || !std::isfinite(scale_[1]) ||
     scale_[0] <= 0.0 || scale_[1] <= 0.0 || feedback_timeout_ms_ <= 0)
   {
-    RCLCPP_ERROR(logger, "Invalid RPM/PWM range or wheel scale");
+    RCLCPP_ERROR(logger, "Invalid RPM/PWM range or wheel scale (max_pwm must be 1..1200)");
     return CallbackReturn::ERROR;
   }
   return CallbackReturn::SUCCESS;
@@ -219,7 +219,7 @@ bool MyCarSystem::send_wheel_command(double left, double right)
   const std::array<double, 2> command{{left, right}};
   std::array<int16_t, 2> pwm{};
   for (std::size_t i = 0; i < 2; ++i) {
-    // max_rpm 是满 PWM 时轮速的初始标定值，需按实际电机调整。
+    // max_rpm对应最大允许PWM的轮速；只在此处换算，下位机直接执行PWM。
     const double rpm = std::clamp(command[i] * rpm_per_rad_s, -max_rpm_, max_rpm_);
     const double duty = std::clamp(rpm / max_rpm_ * scale_[i], -1.0, 1.0);
     pwm[i] = static_cast<int16_t>(std::lround(duty * max_pwm_));

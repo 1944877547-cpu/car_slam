@@ -94,7 +94,7 @@ ros2 topic pub -r 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.05}, angul
 ## 首次需要调整
 
 - 轮半径初值 **0.0325 m**、轮距初值 **0.125 m**：同时修改 `src/mycar_base/config/controllers.yaml` 和 `src/mycar_base/urdf/mycar.urdf.xacro`。
-- `max_rpm` 默认 **100**，表示满 PWM 时轮速的初始标定值，需实测校准；启动时可加 `max_rpm:=实际值`。左右差异可在 Xacro 中调整 `left_pwm_scale`、`right_pwm_scale`。
+- `max_pwm` 默认 **1200**，与STM32的实际输出上限一致；`max_rpm` 默认 **100**，表示PWM=1200时轮速的待标定初值，需实测校准；启动时可加 `max_rpm:=实际值`。左右差异可在 Xacro 中调整 `left_pwm_scale`、`right_pwm_scale`。
 - IMU 当前安装为 x 向车体右侧、y 向车尾、z 向下，Xacro 的 `imu_joint` 已设置 `rpy="3.1415926536 0 -1.5707963268"`。从上方看车体逆时针转动时，原始 IMU 的 z 角速度为负，经 TF 转换后的 `/odom` z 角速度为正。与车体同向的 `imu_tracking` 与传感器原点重合，供 Cartographer 使用；安装位置需在 `imu_tracking_joint` 的 `xyz` 中按实车测量。
 - IMU 默认请求 20 Hz，与当前实测一致；用 `ros2 topic hz /imu/data` 验证实际频率。当前设备在请求 100 Hz 后仍输出 20 Hz，且未回复寄存器查询；需要进一步核对 NX TX 到 IMU RX 的接线以及模块型号和配置协议，再提高 `imu_rate`。波特率为 115200。
 - 激光安装位置、朝向在 Xacro 的 `laser_joint` 中测量设置；当前保留 `xyz="0 0 0.2"`，表示相对 `base_link` 高 20cm。
@@ -103,7 +103,7 @@ ros2 topic pub -r 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.05}, angul
 
 ## STM32 通信
 
-发送和回包都是8字节二进制，左右PWM为有符号16位大端数，范围 **−3599～+3599**：
+发送和回包都是8字节二进制，左右PWM为有符号16位大端数，范围 **−1200～+1200**：
 
 ```text
 AA 55 左高 左低 右高 右低 0D 0A
@@ -111,7 +111,7 @@ AA 55 03 E8 FC 18 0D 0A    左+1000，右-1000
 AA 55 00 00 00 00 0D 0A    停车
 ```
 
-上位机以50 Hz发送。STM32超过500 ms未收到有效包会停车，回包只确认PWM指令，不是实测轮速。左右顺序与当前STM32固件一致，方向修正在STM32的 `L_REV`、`R_REV` 中完成。
+上位机以50 Hz发送。STM32直接执行限幅后的PWM：收到600输出600，收到1200输出1200；不叠加起步值、不二次缩放、不额外增加斜坡。TIM3周期仍为3599，最大允许占空比约33.3%。STM32超过500 ms未收到有效包会停车，回包只确认实际施加的逻辑PWM，不是实测轮速。左右顺序与当前STM32固件一致，方向修正在STM32的 `L_REV`、`R_REV` 中完成。ROS默认值和STM32新固件需配套更新。
 
 ## 建图时显示 RGB 相机
 

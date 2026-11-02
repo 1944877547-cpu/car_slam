@@ -79,7 +79,7 @@ def generate_launch_description():
         DeclareLaunchArgument('start_lidar', default_value='true'),
         DeclareLaunchArgument('baud_rate', default_value='115200'),
         DeclareLaunchArgument('max_rpm', default_value='100.0'),
-        DeclareLaunchArgument('max_pwm', default_value='3599'),
+        DeclareLaunchArgument('max_pwm', default_value='1200'),
         DeclareLaunchArgument('imu_port', default_value='/dev/ttyTHS1'),
         DeclareLaunchArgument('imu_baud', default_value='115200'),
         DeclareLaunchArgument('imu_rate', default_value='20'),

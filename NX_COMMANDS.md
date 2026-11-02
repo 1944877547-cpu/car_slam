@@ -47,6 +47,8 @@ source ~/car_swarm/install/local_setup.bash
 
 当前导航指令上限：线速度 **0.20 m/s（20 cm/s）**，转向 **1.20 rad/s（约 69°/s）**。导航线加速度为 0.50 m/s²，角加速度为 2.00 rad/s²；实际速度仍需按实车标定。
 
+串口直接传实际PWM，默认范围为 **−1200～+1200**。STM32新固件只限幅，不增加起步补偿、二次缩放或额外斜坡；两端需配套更新。`max_rpm=100`仍是PWM=1200时轮速的待标定初值。
+
 膨胀半径等避障参数以 `src/mycar_navigation2/param/nav2_params.yaml` 的当前设置为准。
 
 ## 4. 终端 A：建图并打开 RGB

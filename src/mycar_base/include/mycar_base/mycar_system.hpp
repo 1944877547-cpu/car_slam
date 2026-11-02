@@ -35,7 +35,7 @@ private:
   std::string serial_port_;
   int baud_rate_{115200};
   double max_rpm_{100.0};
-  int max_pwm_{3599};
+  int max_pwm_{1200};
   int feedback_timeout_ms_{500};
   std::array<double, 2> scale_{{1.0, 1.0}};
   std::array<double, 2> wheel_position_{{0.0, 0.0}};

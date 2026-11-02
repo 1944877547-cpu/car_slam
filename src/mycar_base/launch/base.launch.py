@@ -19,7 +19,7 @@ def generate_launch_description():
         'imu_baud': '115200',
         'imu_rate': '20',
         'max_rpm': '100.0',
-        'max_pwm': '3599',
+        'max_pwm': '1200',
         'lidar_port': '/dev/ttyCH343USB0',
         'start_lidar': 'true',
         'use_sim_time': 'false',
