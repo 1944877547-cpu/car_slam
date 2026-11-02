@@ -22,8 +22,8 @@ amcl:
     pf_z: 0.99
     resample_interval: 1
     transform_tolerance: 0.5
-    update_min_d: 0.05
-    update_min_a: 0.05
+    update_min_d: 0.025
+    update_min_a: 0.025
     tf_broadcast: true
     do_beamskip: false
     save_pose_rate: 0.5
@@ -126,7 +126,7 @@ controller_server:
       debug_trajectory_details: false
       min_vel_x: 0.0
       min_vel_y: 0.0
-      max_vel_x: 0.20  # 恢复初始指令上限：20 cm/s
+      max_vel_x: 0.20
       max_vel_y: 0.0
       max_vel_theta: 1.20
       min_speed_xy: 0.0
@@ -194,7 +194,7 @@ local_costmap:
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 6.0
-        inflation_radius: 0.15  # 缩小障碍物周围的膨胀范围
+        inflation_radius: 0.2
       always_send_full_costmap: false
 
 global_costmap:

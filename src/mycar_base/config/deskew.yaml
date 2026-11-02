@@ -1,0 +1,12 @@
+scan_deskew:
+  ros__parameters:
+    input_topic: /scan_raw
+    output_topic: /scan
+    imu_topic: /imu/data
+    odom_topic: /odom
+    base_frame: base_link
+    wait_timeout: 0.25        # 等待IMU覆盖整圈；超时丢帧，不混入未校正扫描。
+    imu_max_gap: 0.12         # 当前IMU约20Hz，超过此间隔视为缺数据。
+    use_translation: true    # 使用扫描开始之前的EKF速度，做恒速平移补偿。
+    velocity_max_age: 0.30    # 无新鲜历史速度时只做转动补偿，启动无循环依赖。
+    max_linear_speed: 1.0     # 速度异常时不使用平移预测，保留IMU转动补偿。

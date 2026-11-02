@@ -17,6 +17,7 @@ def generate_launch_description():
     serial_port = LaunchConfiguration('serial_port')
     lidar_port = LaunchConfiguration('lidar_port')
     start_lidar = LaunchConfiguration('start_lidar')
+    start_deskew = LaunchConfiguration('start_deskew')
     baud_rate = LaunchConfiguration('baud_rate')
     max_rpm = LaunchConfiguration('max_rpm')
     max_pwm = LaunchConfiguration('max_pwm')
@@ -33,6 +34,7 @@ def generate_launch_description():
             'serial_port': serial_port,
             'lidar_port': lidar_port,
             'start_lidar': start_lidar,
+            'start_deskew': start_deskew,
             'baud_rate': baud_rate,
             'max_rpm': max_rpm,
             'max_pwm': max_pwm,
@@ -88,6 +90,7 @@ def generate_launch_description():
         DeclareLaunchArgument('serial_port', default_value='/dev/ttyCH341USB0'),
         DeclareLaunchArgument('lidar_port', default_value='/dev/ttyCH343USB0'),
         DeclareLaunchArgument('start_lidar', default_value='true'),
+        DeclareLaunchArgument('start_deskew', default_value='true'),
         DeclareLaunchArgument('baud_rate', default_value='115200'),
         DeclareLaunchArgument('max_rpm', default_value='100.0'),
         DeclareLaunchArgument('max_pwm', default_value='3599'),

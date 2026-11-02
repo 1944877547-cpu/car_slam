@@ -67,6 +67,7 @@ namespace lslidar_driver {
         node_->declare_parameter<std::string>("serial_port", "");
         node_->declare_parameter<float>("n301_protocol", 7.0);
         node_->declare_parameter<bool>("enable_noise_filter", false);
+        node_->declare_parameter<double>("timestamp_offset", 0.0);
         
 		
         node_->declare_parameter<bool>("is_MatrixTransformation", false);
@@ -103,6 +104,8 @@ namespace lslidar_driver {
         node_->get_parameter("serial_port", serial_port_);
         node_->get_parameter("n301_protocol", n301_protocol);
         node_->get_parameter("enable_noise_filter", enable_noise_filter);
+        node_->get_parameter("timestamp_offset", n10_time_offset_);
+        if (!std::isfinite(n10_time_offset_)) return false;
         
 		// 获取转换矩阵
         node_->get_parameter("is_MatrixTransformation", is_MatrixTransformation);
@@ -308,6 +311,10 @@ namespace lslidar_driver {
         }
         
         this->initTimeStamp();
+        if (lidar_model == "N10") {
+            n10_scan_.reset(new N10Scan(points_size * (use_high_precision ? 10 : 1),
+                                      frame_id, min_range, max_range));
+        }
 
         if (is_pretreatment) {
             pointcloud_transform_.setTransform(x_offset, y_offset, z_offset, roll, pitch, yaw);
@@ -323,6 +330,38 @@ namespace lslidar_driver {
         return true;
     }
 
+
+    void LslidarX10Driver::publishN10(const sensor_msgs::msg::LaserScan& scan) {
+        if (publish_scan) laserscan_pub_->publish(scan);
+        const auto start = rclcpp::Time(scan.header.stamp);
+        const auto end = start + rclcpp::Duration::from_seconds(scan.scan_time);
+        // 原始点云仅作诊断，坐标方向与LaserScan一致；算法统一使用去畸变/scan。
+        if (pointcloud_pub_->get_subscription_count() > 0) {
+            pcl::PointCloud<pcl::PointXYZI> cloud;
+            cloud.header.frame_id = frame_id;
+            cloud.height = 1;
+            for (size_t i = 0; i < scan.ranges.size(); ++i) {
+                if (!std::isfinite(scan.ranges[i])) continue;
+                const double a = scan.angle_min + i * double(scan.angle_increment);
+                pcl::PointXYZI point;
+                point.x = scan.ranges[i] * std::cos(a);
+                point.y = scan.ranges[i] * std::sin(a);
+                point.z = 0;
+                point.intensity = scan.intensities[i];
+                cloud.points.push_back(point);
+            }
+            cloud.width = cloud.points.size();
+            if (is_pretreatment) pointcloud_transform_.applyTransform(cloud);
+            if (is_MatrixTransformation) pointcloud_transform_.applyTransform_2(cloud, MatrixTransform_result);
+            sensor_msgs::msg::PointCloud2 message;
+            pcl::toROSMsg(cloud, message);
+            message.header.stamp = (use_first_point_time ? start : end);
+            pointcloud_pub_->publish(message);
+        }
+        std_msgs::msg::Float64 time;
+        time.data = end.seconds();
+        time_pub_->publish(time);
+    }
 
     void LslidarX10Driver::publishLiadrData() {
         std::unique_lock<std::mutex> lock(pointcloud_lock);
@@ -461,7 +500,21 @@ namespace lslidar_driver {
             }
         }
 
+        // N10没有硬件时间戳，用整包接收时刻和4.5kHz采样率估计每束时间。
+        const double received = node_->get_clock()->now().seconds() + n10_time_offset_;
         decodePacket(packet);
+        if (lidar_model == "N10") {
+            sensor_msgs::msg::LaserScan scan;
+            for (size_t i = 0; i < points.size(); ++i) {
+                const auto& point = points[i];
+                const double t = received - (points.size() - 1 - i) / double(N10_PULSE_FREQUENCY);
+                const float range = isPointValid(i) &&
+                    !(enable_noise_filter && isNoisePoint(i, points.size())) ?
+                    point.distance : std::numeric_limits<float>::infinity();
+                if (n10_scan_->add(point.azimuth, range, point.intensity, t, scan)) publishN10(scan);
+            }
+            return true;  // N10同步发布本帧快照，不再使用可被下一圈覆盖的共享缓冲。
+        }
 
         size_t new_sweep_start = 0;
         do {
@@ -805,7 +858,7 @@ namespace lslidar_driver {
 				
         for (size_t point_idx = 0, point_num = 0; point_idx < POINT_LEN_N10 * actual_points; point_idx += POINT_LEN_N10, ++point_num) {
             FiringX10 point;
-            point.azimuth = (start_angle + (ANGLE_INTERVAL_N10 / (actual_points - 1) * point_num)) % 36000; // 误差: 0.01°以内
+            point.azimuth = (start_angle + (ANGLE_INTERVAL_N10 * point_num / (actual_points - 1))) % 36000; // 误差: 0.01°以内
             point.distance = static_cast<float >((packet->data[point_idx + data_bits_start] << 8) + 
                                                   packet->data[point_idx + data_bits_start + 1]) * DISTANCE_RESOLUTION_X10;
             point.intensity = static_cast<float>(packet->data[point_idx + data_bits_start + 2]);

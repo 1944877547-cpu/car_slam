@@ -1,6 +1,7 @@
-# car_swarm：NX 全流程指令
+# car_slam：NX 全流程指令
 
-适用于 **Orin NX + Ubuntu 22.04 + ROS 2 Humble**。从 PC 同步本版源码后，需要先在 NX 执行第 2 步编译，再使用新增的激光里程计。
+适用于 **Orin NX + Ubuntu 22.04 + ROS 2 Humble**。仓库为 `1944877547-cpu/car_slam`，当前代码位于 `cartographer` 分支。
+命令沿用 NX 已有目录 `~/car_swarm`；仓库改名无需移动本地目录。更新源码后先执行第 2 步编译。
 以下命令均在 NX 执行；启动 RViz、键盘控制时，使用 NX 桌面内的终端。
 
 ## 1. 上电与设备检查
@@ -24,7 +25,7 @@ id -nG
 
 ## 2. 编译（修改代码后执行）
 
-当前 NX 已编译完成，日常使用可直接从第 3 步开始。先关闭运行中的建图、底盘或导航程序，再编译。
+首次使用或更新源码后重新编译，完成后日常使用可从第 3 步开始。先关闭运行中的建图、底盘或导航程序，再编译。
 
 ```bash
 unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH CMAKE_PREFIX_PATH ROS_PACKAGE_PATH PYTHONPATH LD_LIBRARY_PATH
@@ -46,7 +47,7 @@ source ~/car_swarm/install/local_setup.bash
 
 当前恢复最初的 **1/1** 指令上限：线速度 **0.20 m/s（20 cm/s）**，转向 **1.20 rad/s（约 69°/s）**。导航线加速度为 0.50 m/s²，角加速度为 2.00 rad/s²；实际速度仍需按实车标定。
 
-局部、全局代价地图的 `inflation_radius` 均为 **0.15 m**，`cost_scaling_factor` 为 **6.0**。
+膨胀半径等避障参数以 `src/mycar_navigation2/param/nav2_params.yaml` 的当前设置为准。
 
 ## 4. 终端 A：建图并打开 RGB
 
@@ -156,3 +157,17 @@ ros2 launch mycar_cartographer camera_rgb.launch.py
 当前底盘没有轮编码器，平移里程计来自 `/scan → RF2O → /odom_lidar`；EKF 融合激光平面速度、角速度与 IMU 角速度后输出 `/odom`。`/odom_raw` 只保留为指令估算对照，不进入 EKF。轮径、轮距、PWM 与实际车速的对应关系仍需实车标定。
 
 底盘入口已包含雷达驱动。若雷达驱动已单独运行，可加 `start_lidar:=false` 复用其 `/scan`。首次启动等待扫描/TF 最多 30 秒，之后连续 1 秒无有效激光里程计将关闭当前底盘启动组；不会回退到指令估算。
+
+## N10 去畸变检查
+
+更新源码后在 NX 重新编译；原有建图、导航启动命令不变。
+默认 `/scan_raw` 为按采集时序的原始扫描，`/scan` 为 IMU 校正后的扫描。
+
+```bash
+ros2 topic echo /scan_raw --once --field time_increment
+ros2 topic echo /scan --once --field time_increment
+```
+
+第一条应为正数；第二条为0，因为所有点已补偿到同一时刻。
+IMU缺帧时不混用原始扫描。参数见 `src/mycar_base/config/deskew.yaml`。
+外部已提供校正 `/scan` 时添加 `start_lidar:=false start_deskew:=false`。
