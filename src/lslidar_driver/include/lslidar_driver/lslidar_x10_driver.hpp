@@ -89,7 +89,6 @@ namespace lslidar_driver {
 
         void publishN10(const sensor_msgs::msg::LaserScan& scan);
         std::unique_ptr<N10Scan> n10_scan_;
-        double n10_time_offset_ = 0.0;
 
         void publishMultiEchoLaserScan();
 

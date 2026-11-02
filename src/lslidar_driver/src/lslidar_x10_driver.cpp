@@ -67,7 +67,6 @@ namespace lslidar_driver {
         node_->declare_parameter<std::string>("serial_port", "");
         node_->declare_parameter<float>("n301_protocol", 7.0);
         node_->declare_parameter<bool>("enable_noise_filter", false);
-        node_->declare_parameter<double>("timestamp_offset", 0.0);
         
 		
         node_->declare_parameter<bool>("is_MatrixTransformation", false);
@@ -104,8 +103,6 @@ namespace lslidar_driver {
         node_->get_parameter("serial_port", serial_port_);
         node_->get_parameter("n301_protocol", n301_protocol);
         node_->get_parameter("enable_noise_filter", enable_noise_filter);
-        node_->get_parameter("timestamp_offset", n10_time_offset_);
-        if (!std::isfinite(n10_time_offset_)) return false;
         
 		// 获取转换矩阵
         node_->get_parameter("is_MatrixTransformation", is_MatrixTransformation);
@@ -501,7 +498,7 @@ namespace lslidar_driver {
         }
 
         // N10没有硬件时间戳，用整包接收时刻和4.5kHz采样率估计每束时间。
-        const double received = node_->get_clock()->now().seconds() + n10_time_offset_;
+        const double received = node_->get_clock()->now().seconds();
         decodePacket(packet);
         if (lidar_model == "N10") {
             sensor_msgs::msg::LaserScan scan;

@@ -45,7 +45,7 @@ source ~/car_swarm/install/local_setup.bash
 无需单独的启动脚本，也无需清空其他已配置的 Python 和动态库路径。
 可用 `ros2 pkg prefix nav2_map_server` 检查，当前应输出 `/opt/ros/humble`。
 
-当前导航指令上限：线速度 **0.20 m/s（20 cm/s）**，转向 **0.80 rad/s（约 46°/s）**。导航线加速度为 0.50 m/s²，角加速度为 1.33 rad/s²；实际速度仍需按实车标定。
+当前导航指令上限：线速度 **0.20 m/s（20 cm/s）**，转向 **1.20 rad/s（约 69°/s）**。导航线加速度为 0.50 m/s²，角加速度为 2.00 rad/s²；实际速度仍需按实车标定。
 
 膨胀半径等避障参数以 `src/mycar_navigation2/param/nav2_params.yaml` 的当前设置为准。
 
