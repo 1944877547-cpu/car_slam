@@ -335,7 +335,7 @@ namespace lslidar_driver {
         if (publish_scan) laserscan_pub_->publish(scan);
         const auto start = rclcpp::Time(scan.header.stamp);
         const auto end = start + rclcpp::Duration::from_seconds(scan.scan_time);
-        // 原始点云仅作诊断，坐标方向与LaserScan一致；算法统一使用去畸变/scan。
+        // 点云坐标与LaserScan一致；雷达直接发布/scan，保留原始采集时序。
         if (pointcloud_pub_->get_subscription_count() > 0) {
             pcl::PointCloud<pcl::PointXYZI> cloud;
             cloud.header.frame_id = frame_id;

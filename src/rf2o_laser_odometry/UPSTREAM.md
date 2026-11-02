@@ -11,6 +11,7 @@ The range-flow scan-matching algorithm is retained. The ROS adapter was updated 
 - Wait for the laser-to-base TF before initializing; use a valid identity quaternion.
 - Prime the first scan and restore both base and laser poses when initializing.
 - Validate timestamps, scan geometry, ranges and finite match results before publishing.
+- Accept clockwise N10 scans by reversing data internally, preserving the public acquisition order and timing; no motion compensation is applied.
 - Correct the scan angular center using `angle_min`/`angle_increment` and the actual beam count.
 - Publish base-frame planar velocities, including lateral motion and laser lever-arm compensation.
 - Set configurable, positive twist covariance; the values are initial estimates requiring calibration.

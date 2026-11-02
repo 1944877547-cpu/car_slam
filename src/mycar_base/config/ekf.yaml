@@ -2,6 +2,13 @@ ekf_filter_node:
   ros__parameters:
     frequency: 50.0
     sensor_timeout: 0.2
+    # 激光匹配结果晚于IMU到达，按测量时间回溯融合，保留0.5秒历史。
+    smooth_lagged_data: true
+    history_length: 0.5
+    # 将融合状态预测到当前时刻；/odom和odom->base_link使用同一时间。
+    predict_to_current_time: true
+    transform_time_offset: 0.0
+    permit_corrected_publication: false
     two_d_mode: true
     publish_tf: true
     print_diagnostics: true

@@ -22,7 +22,6 @@ def generate_launch_description():
         'max_pwm': '3599',
         'lidar_port': '/dev/ttyCH343USB0',
         'start_lidar': 'true',
-        'start_deskew': 'true',
         'use_sim_time': 'false',
     }
     args = {name: LaunchConfiguration(name) for name in defaults}
@@ -60,13 +59,8 @@ def generate_launch_description():
             get_package_share_directory('lslidar_driver') + '/launch/lsn10_launch.py'),
         condition=IfCondition(args['start_lidar']),
         launch_arguments={'lidar_port': args['lidar_port'],
+                          'use_sim_time': args['use_sim_time'],
                           'output': 'screen', 'log_level': 'warn'}.items(),
-    )
-    # 原始扫描只进此节点；RF2O、AMCL、代价地图共用同一份校正后的/scan。
-    deskew = Node(
-        package='mycar_base', executable='scan_deskew', name='scan_deskew', output='screen',
-        condition=IfCondition(args['start_deskew']),
-        parameters=[share + '/config/deskew.yaml', {'use_sim_time': sim}],
     )
     laser_odom = Node(
         package='rf2o_laser_odometry', executable='rf2o_laser_odometry_node',
@@ -86,7 +80,7 @@ def generate_launch_description():
     handlers = [RegisterEventHandler(OnProcessExit(
         target_action=node,
         on_exit=[EmitEvent(event=Shutdown(reason='A base node exited'))],
-    )) for node in [control, imu, deskew, laser_odom, ekf]]
+    )) for node in [control, imu, laser_odom, ekf]]
     return LaunchDescription(
         [DeclareLaunchArgument(name, default_value=value) for name, value in defaults.items()]
-        + handlers + [state, control, imu, lidar, deskew, laser_odom, ekf] + spawners)
+        + handlers + [state, control, imu, lidar, laser_odom, ekf] + spawners)

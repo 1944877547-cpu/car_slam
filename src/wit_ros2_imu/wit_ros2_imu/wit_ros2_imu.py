@@ -7,6 +7,7 @@ import rclpy
 import serial
 from geometry_msgs.msg import Vector3Stamped
 from rclpy.executors import ExternalShutdownException
+from rclpy.duration import Duration
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
 
@@ -135,13 +136,19 @@ class IMUDriverNode(Node):
         self.declare_parameter("port", DEFAULT_PORT)
         self.declare_parameter("baud", DEFAULT_BAUD)
         self.declare_parameter("rate_hz", DEFAULT_RATE_HZ)
+        # 无硬件时间戳：默认使用接收时间估计，仅在实测延迟后调整此偏移(s)。
+        self.declare_parameter("timestamp_offset", 0.0)
 
         self.port = self.get_parameter("port").get_parameter_value().string_value
         self.baud_rate = self.get_parameter("baud").get_parameter_value().integer_value
         self.rate_hz = self.get_parameter("rate_hz").get_parameter_value().integer_value
+        self.time_offset = self.get_parameter("timestamp_offset").value
+        if self.baud_rate <= 0 or self.rate_hz <= 0 or not math.isfinite(self.time_offset):
+            raise ValueError("Invalid IMU baud, rate_hz or timestamp_offset")
 
         self.stop_event = threading.Event()
         self.parser = WitParser()
+        self.frame_times = {}
         self.imu_msg = Imu()
         self.imu_msg.header.frame_id = "imu_link"
         # 初始协方差，避免EKF把未知精度当作接近零噪声；可按实测噪声调整。
@@ -228,15 +235,26 @@ class IMUDriverNode(Node):
                 return
 
             if waiting:
+                # 配置为51/52/53共33字节；积压两组时丢弃，避免把旧测量标成新数据。
+                if waiting >= 2 * 3 * FRAME_LENGTH:
+                    wit_serial.reset_input_buffer()
+                    self.parser = WitParser()
+                    self.frame_times.clear()
+                    continue
                 data = wit_serial.read(min(waiting, 4096))
+                received = self.get_clock().now()
                 stats.add_bytes(data)
                 last_data_time = time.time()
-                for value in data:
+                for index, value in enumerate(data):
                     frame_type = self.parser.push_byte(value)
                     if frame_type in (ACCEL_FRAME, GYRO_FRAME, ANGLE_FRAME):
+                        # 8N1每字节10位，估计本帧首字节时间，不使用解析结束时刻。
+                        delay = (len(data) - 1 - index + FRAME_LENGTH) * 10.0 / self.baud_rate
+                        stamp = received + Duration(nanoseconds=round((self.time_offset - delay) * 1e9))
+                        self.frame_times[frame_type] = stamp
                         stats.valid_packets += 1
                         if frame_type == ANGLE_FRAME:
-                            self.publish_current_state()
+                            self.publish_current_state(stamp)
                             stats.published += 1
             else:
                 self.log_if_waiting_for_data(last_data_time)
@@ -270,12 +288,18 @@ class IMUDriverNode(Node):
         #     )
         # )
 
-    def publish_current_state(self):
-        stamp = self.get_clock().now().to_msg()
+    def publish_current_state(self, angle_time):
+        accel_time = self.frame_times.pop(ACCEL_FRAME, None)
+        gyro_time = self.frame_times.pop(GYRO_FRAME, None)
         angle_radian = [math.radians(value) for value in self.parser.angle_degree]
         qx, qy, qz, qw = quaternion_from_euler(*angle_radian)
 
-        self.imu_msg.header.stamp = stamp
+        # EKF使用角速度：IMU消息取本组0x52的时间；缺帧时不重发上组测量。
+        fresh = (accel_time is not None and gyro_time is not None and
+                 0 <= (gyro_time - accel_time).nanoseconds <= 2e9 / self.rate_hz and
+                 0 <= (angle_time - gyro_time).nanoseconds <= 2e9 / self.rate_hz)
+        if fresh:
+            self.imu_msg.header.stamp = gyro_time.to_msg()
         self.imu_msg.linear_acceleration.x = float(self.parser.acceleration[0])
         self.imu_msg.linear_acceleration.y = float(self.parser.acceleration[1])
         self.imu_msg.linear_acceleration.z = float(self.parser.acceleration[2])
@@ -286,11 +310,12 @@ class IMUDriverNode(Node):
         self.imu_msg.orientation.y = float(qy)
         self.imu_msg.orientation.z = float(qz)
         self.imu_msg.orientation.w = float(qw)
-        self.imu_pub.publish(self.imu_msg)
+        if fresh:
+            self.imu_pub.publish(self.imu_msg)
 
         # 只有收到真正的角度帧 0x53 时，才发布 /imu/angle。
         # 这样 PID 节点第一帧拿到的就是 IMU 当前实际角度，不会被默认 0.0 误初始化。
-        self.angle_msg.header.stamp = stamp
+        self.angle_msg.header.stamp = angle_time.to_msg()
         self.angle_msg.vector.x = float(self.parser.angle_degree[0])
         self.angle_msg.vector.y = float(self.parser.angle_degree[1])
         self.angle_msg.vector.z = float(self.parser.angle_degree[2])

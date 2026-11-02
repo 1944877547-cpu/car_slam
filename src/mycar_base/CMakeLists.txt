@@ -10,16 +10,6 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(nav_msgs REQUIRED)
-find_package(tf2_ros REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED)
-
-add_executable(scan_deskew src/scan_deskew.cpp)
-target_compile_features(scan_deskew PUBLIC cxx_std_17)
-ament_target_dependencies(scan_deskew rclcpp sensor_msgs nav_msgs tf2_ros tf2_geometry_msgs)
-install(TARGETS scan_deskew DESTINATION lib/mycar_base)
-
 add_library(mycar_hardware SHARED src/mycar_system.cpp)
 target_compile_features(mycar_hardware PUBLIC cxx_std_17)
 target_include_directories(mycar_hardware PUBLIC
@@ -39,6 +29,12 @@ install(TARGETS mycar_hardware
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)
 install(DIRECTORY include/ DESTINATION include)
+# 升级时清除已移除节点的旧安装文件，避免旧工作空间残留可执行程序。
+install(CODE [[
+  file(REMOVE
+    "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/mycar_base/scan_deskew"
+    "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/mycar_base/config/deskew.yaml")
+]])
 install(DIRECTORY config launch urdf DESTINATION share/${PROJECT_NAME})
 
 ament_export_targets(export_mycar_hardware HAS_LIBRARY_TARGET)

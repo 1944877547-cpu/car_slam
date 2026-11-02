@@ -45,7 +45,7 @@ source ~/car_swarm/install/local_setup.bash
 无需单独的启动脚本，也无需清空其他已配置的 Python 和动态库路径。
 可用 `ros2 pkg prefix nav2_map_server` 检查，当前应输出 `/opt/ros/humble`。
 
-当前恢复最初的 **1/1** 指令上限：线速度 **0.20 m/s（20 cm/s）**，转向 **1.20 rad/s（约 69°/s）**。导航线加速度为 0.50 m/s²，角加速度为 2.00 rad/s²；实际速度仍需按实车标定。
+当前导航指令上限：线速度 **0.20 m/s（20 cm/s）**，转向 **0.80 rad/s（约 46°/s）**。导航线加速度为 0.50 m/s²，角加速度为 1.33 rad/s²；实际速度仍需按实车标定。
 
 膨胀半径等避障参数以 `src/mycar_navigation2/param/nav2_params.yaml` 的当前设置为准。
 
@@ -158,16 +158,14 @@ ros2 launch mycar_cartographer camera_rgb.launch.py
 
 底盘入口已包含雷达驱动。若雷达驱动已单独运行，可加 `start_lidar:=false` 复用其 `/scan`。首次启动等待扫描/TF 最多 30 秒，之后连续 1 秒无有效激光里程计将关闭当前底盘启动组；不会回退到指令估算。
 
-## N10 去畸变检查
+## N10 扫描检查
 
-更新源码后在 NX 重新编译；原有建图、导航启动命令不变。
-默认 `/scan_raw` 为按采集时序的原始扫描，`/scan` 为 IMU 校正后的扫描。
+雷达直接发布 `/scan`，保留原始采集时序，频率维持约10Hz。
 
 ```bash
-ros2 topic echo /scan_raw --once --field time_increment
-ros2 topic echo /scan --once --field time_increment
+timeout 10s ros2 topic hz /scan
+ros2 topic echo /scan --once --field scan_time
 ```
 
-第一条应为正数；第二条为0，因为所有点已补偿到同一时刻。
-IMU缺帧时不混用原始扫描。参数见 `src/mycar_base/config/deskew.yaml`。
-外部已提供校正 `/scan` 时添加 `start_lidar:=false start_deskew:=false`。
+`scan_time` 通常约0.1秒。IMU继续用于EKF融合，不再经过独立的扫描运动补偿节点。
+外部雷达驱动已提供 `/scan` 时，启动参数添加 `start_lidar:=false`。

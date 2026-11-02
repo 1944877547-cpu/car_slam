@@ -6,6 +6,7 @@ import math
 import os
 from pathlib import Path
 import signal
+import sys
 import subprocess
 import tempfile
 import time
@@ -14,10 +15,16 @@ import numpy as np
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import TransformStamped, Twist
+from rclpy.duration import Duration
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu, LaserScan
 from tf2_msgs.msg import TFMessage
 from tf2_ros import StaticTransformBroadcaster
+
+
+CLOCKWISE = '--clockwise' in sys.argv
+if CLOCKWISE:
+    sys.argv.remove('--clockwise')
 
 
 class Fixture:
@@ -42,7 +49,8 @@ class Fixture:
         for x0, y0, x1, y1 in ((-4, -3, 5, 4), (1.6, 0.8, 2.2, 1.5), (-1.5, 1.2, -0.8, 1.7)):
             p = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
             self.segments.extend(zip(p, p[1:] + p[:1]))
-        self.angles = np.arange(720) * (2 * math.pi / 720) - math.pi
+        self.angles = (-np.arange(720) * (2 * math.pi / 720) if CLOCKWISE else
+                       np.arange(720) * (2 * math.pi / 720) - math.pi)
 
     def mount(self):
         t = TransformStamped()
@@ -73,11 +81,14 @@ class Fixture:
             good = (distance > 0) & (along >= 0) & (along <= 1) & (np.abs(denominator) > 1e-10)
             ranges = np.minimum(ranges, np.where(good, distance, np.inf))
         m = LaserScan()
-        m.header.stamp = self.node.get_clock().now().to_msg()
+        now = self.node.get_clock().now()
+        if CLOCKWISE:
+            now -= Duration(nanoseconds=round(719 * (0.1/720) * 1e9))
+        m.header.stamp = now.to_msg()
         m.header.frame_id = 'laser'
-        m.angle_min = -math.pi
-        m.angle_max = math.pi  # N10 reports this end point with 720 samples.
-        m.angle_increment = 2*math.pi/720
+        m.angle_min = float(self.angles[0])
+        m.angle_max = float(self.angles[-1]) if CLOCKWISE else math.pi
+        m.angle_increment = (-1 if CLOCKWISE else 1) * 2*math.pi/720
         m.scan_time = 0.1
         m.time_increment = 0.1/720
         m.range_min = 0.15
@@ -136,12 +147,12 @@ def stop(process):
 
 
 def main():
-    os.environ['ROS_DOMAIN_ID'] = '94'
+    os.environ['ROS_DOMAIN_ID'] = '93' if CLOCKWISE else '94'
     os.environ['ROS_LOCALHOST_ONLY'] = '1'
     folder = Path(tempfile.mkdtemp(prefix='car_swarm_laser_check_'))
     os.environ['ROS_LOG_DIR'] = str(folder/'ros_log')
     config = Path(get_package_share_directory('mycar_base'))/'config'
-    report = {'folder': str(folder), 'passed': False}
+    report = {'folder': str(folder), 'passed': False, 'clockwise_scan': CLOCKWISE}
     processes = []
     logs = []
     rclpy.init()

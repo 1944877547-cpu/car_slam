@@ -51,7 +51,7 @@ source ~/car_swarm/install/local_setup.bash
 直接加载环境会保留其他已配置的 Python 和动态库路径，无需单独的启动脚本。
 `ros2 pkg prefix nav2_map_server` 应输出 `/opt/ros/humble`。
 
-当前恢复最初的 1/1 指令上限：直行 0.20 m/s、转向 1.20 rad/s；导航线加速度 0.50 m/s²、角加速度 2.00 rad/s²。实际速度需要实车标定。
+当前导航指令上限：直行 0.20 m/s、转向 0.80 rad/s；导航线加速度 0.50 m/s²、角加速度 1.33 rad/s²。实际速度需要实车标定。
 
 本机 NX 的默认端口：STM32 为 `/dev/ttyCH341USB0`，IMU 为 `/dev/ttyTHS1`，两者均为 115200、8N1；N10 雷达为 `/dev/ttyCH343USB0`。建图和导航可用 `lidar_port:=设备路径` 单独覆盖雷达端口。
 
@@ -87,9 +87,9 @@ ros2 control list_controllers
 ros2 topic pub -r 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.05}, angular: {z: 0.0}}"
 ```
 
-`/scan_raw → scan_deskew → /scan → RF2O → /odom_lidar` 提供激光位姿和速度；EKF 融合激光的平面速度、角速度与 IMU 的 Z 轴角速度，输出 `/odom`。`/odom_raw` 仅为指令估算对照，不是当前导航里程计的输入。只有 EKF 发布 `odom → base_link`，建图或 AMCL 发布 `map → odom`。
+`/scan → RF2O → /odom_lidar` 提供激光位姿和速度；EKF 融合激光的平面速度、角速度与 IMU 的 Z 轴角速度，输出 `/odom`。`/odom_raw` 仅为指令估算对照，不是当前导航里程计的输入。只有 EKF 发布 `odom → base_link`，建图或 AMCL 发布 `map → odom`。
 
-雷达驱动集中在底盘入口启动。外部驱动提供 `/scan_raw` 时添加 `start_lidar:=false`；外部节点已提供校正后的 `/scan` 时，同时添加 `start_lidar:=false start_deskew:=false`。初次启动允许等待扫描和 `base_link → laser` 静态 TF 最多 30 秒；正常运行后连续 1 秒没有有效激光里程计，RF2O 退出并关闭当前底盘启动组。没有命令估算回退。扫描匹配在走廊、空旷或大量动态障碍物场景中可能退化，需要实车确认。
+雷达驱动集中在底盘入口启动。外部驱动已经提供 `/scan` 时添加 `start_lidar:=false`。初次启动允许等待扫描和 `base_link → laser` 静态 TF 最多 30 秒；正常运行后连续 1 秒没有有效激光里程计，RF2O 退出并关闭当前底盘启动组。没有命令估算回退。扫描匹配在走廊、空旷或大量动态障碍物场景中可能退化，需要实车确认。
 
 ## 首次需要调整
 
@@ -162,33 +162,36 @@ python3 tests/check_laser_odometry.py
 
 测试使用独立 ROS 域和合成扫描，不启动电机或真实串口，覆盖平移、转动安装偏移、TF 延迟、错误输入和断流退出。
 
-## N10 时间修正与二维去畸变
+## N10 扫描输出
 
-默认启动流程为：N10 `/scan_raw` → `scan_deskew` → `/scan`。
-RF2O、AMCL、Cartographer 和代价地图共用校正后的 `/scan`；原始点云仅作诊断。
-
-- `/scan_raw` 按采集顺序排列，N10 的 `angle_increment` 为负，`time_increment` 为正。
-  时间戳对应首束角度，扫描周期来自相邻整圈边界；初始不完整圈不发布。
-- N10 当前协议没有硬件时钟，主机接收时刻和 4.5kHz 采样率用于估计时间。
-  `lslidar_n10_uart.yaml` 的 `timestamp_offset` 单位为秒，需实测传输延迟后再校准，默认0。
-- 陀螺仪通过 URDF 安装姿态变换到车体坐标，插值积分补偿每束点的转向，包含雷达安装偏移。
-  平移使用扫描开始之前的新鲜 `/odom` 速度做恒速预测；无可用速度时只做转动补偿。
-- `/scan` 已统一到最后一束的参考时刻，因此其 `time_increment=0` 是正确的，防止下游再次去畸变。
-  `scan_time` 仍保留真实扫描周期，角度重新按逆时针排列。
-- 参数位于 `src/mycar_base/config/deskew.yaml`。IMU需覆盖整圈；缺数据/缺TF超时则丢弃该帧，
-  不发布未校正的扫描。持续缺扫描仍由既有 RF2O 超时机制退出底盘。
-
-正常建图、导航命令不变。如果外部节点已经发布校正后的 `/scan`，启动时同时添加
-`start_lidar:=false start_deskew:=false`；如果外部只提供 `/scan_raw`，仅关闭 `start_lidar`。
-
-离线检查（不启动电机和真实串口）：
+雷达直接发布 `/scan`，保留按采集顺序排列的原始距离、首束时间和逐点时间间隔。
+N10 为顺时针扫描，`angle_increment` 为负，`time_increment` 为正；RF2O 内部整理角度顺序，不做运动补偿。
+保留整圈周期估计和初始不完整圈过滤，名义扫描频率仍为10Hz，实际频率以设备输出为准。
+N10 当前协议没有硬件时间戳，`timestamp_offset` 用于实测后的主机接收时间偏移校准。
 
 ```bash
-source /opt/ros/humble/setup.bash
-source ~/car_swarm/install/local_setup.bash
-cd ~/car_swarm
-python3 tests/check_scan_deskew.py
+timeout 10s ros2 topic hz /scan
+ros2 topic echo /scan --once --field scan_time
+python3 tests/check_laser_odometry.py --clockwise
 ```
 
-该测试验证采集方向、时间边界、20Hz倒置IMU、顺逆转、加速转向、安装偏移、历史速度选择及缺帧恢复。
-二维补偿依赖安装外参和时间估计；快速颠簸、陀螺仪零偏、USB缓存延迟仍需实车采集标定。
+`scan_time` 通常约0.1秒；`N10Plus_hz` 仅用于N10Plus配置，不能改变N10的真实转速。
+
+## 时间戳检查
+
+实车运行统一使用系统时钟（`use_sim_time:=false`），雷达、IMU和算法都在NX上打ROS时间戳。
+`/scan` 为首束时间，最后一束为 `stamp + (N-1) * time_increment`；10Hz整圈发布时首束已过去约0.1秒，这是正常采集时长。
+RF2O保留扫描参考时间（N10取最后一束），不会用计算完成时刻覆盖测量时间。
+IMU按串口8N1传输时间估计各帧首字节时刻，`/imu/data`取本组陀螺仪帧时间，缺少本组加速度/陀螺仪帧时不发布旧测量。
+积压达到两组回传时丢弃并等待新数据。IMU的`timestamp_offset`默认0，只有实测固定延迟后才调整。
+EKF保留0.5秒历史处理迟到的激光结果，再预测到当前时刻，`/odom`和`odom → base_link`使用相同时间戳。
+AMCL的`map → odom`含`transform_tolerance`的前置有效期，静态TF时间为0也正常，不能要求所有话题时间戳数值相同。
+
+启动底盘、建图或导航后，另开终端检查（只监听，不发送运动指令）：
+
+```bash
+python3 tests/check_timestamps.py --seconds 10
+```
+
+输出`passed: true`表示本次采样的时钟设置、时间顺序、RF2O扫描时间对应关系、里程计TF和扫描TF覆盖检查通过。
+雷达和此IMU协议均未提供可用的硬件采样时间，这项检查不能证明物理采样已硬同步；内部滤波、USB缓冲等残余延迟需在NX实测。

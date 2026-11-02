@@ -6,6 +6,7 @@
  */
 #include "rf2o_laser_odometry/CLaserOdometry2DNode.hpp"
 #include <cmath>
+#include <algorithm>
 #include <stdexcept>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
@@ -61,10 +62,9 @@ void CLaserOdometry2DNode::scan(const sensor_msgs::msg::LaserScan::SharedPtr mes
   const auto& m = *message;
   if (!pose_ready_ || m.header.frame_id.empty() || m.ranges.size() < 64 ||
       rclcpp::Time(m.header.stamp).nanoseconds() <= 0 ||
-      !std::isfinite(m.angle_min) || !std::isfinite(m.angle_increment) || m.angle_increment <= 0 ||
+      !std::isfinite(m.angle_min) || !std::isfinite(m.angle_increment) || m.angle_increment == 0 ||
       !std::isfinite(m.range_min) || !std::isfinite(m.range_max) ||
       m.range_min < 0 || m.range_max <= m.range_min) return;
-  if (!scan_.ranges.empty() && rclcpp::Time(m.header.stamp) <= rclcpp::Time(scan_.header.stamp)) return;
   auto clean = m;
   size_t valid = 0;
   for (auto& value : clean.ranges) {
@@ -74,7 +74,22 @@ void CLaserOdometry2DNode::scan(const sensor_msgs::msg::LaserScan::SharedPtr mes
   if (valid < 30) return;
   // 用采样点和角度步长确定实际视场，兼容N10的angle_max端点写法。
   clean.angle_max = clean.angle_min + (clean.ranges.size() - 1) * clean.angle_increment;
-  if (!std::isfinite(clean.angle_max) || clean.angle_max - clean.angle_min > 6.284) return;
+  if (!std::isfinite(clean.angle_max) || std::abs(clean.angle_max - clean.angle_min) > 6.284) return;
+  // N10按顺时针采集，保持公开/scan的原始角度与逐点时间。
+  // 仅在RF2O内部反转数组以适配算法；这不是运动补偿。
+  if (clean.angle_increment < 0) {
+    const double duration = (clean.ranges.size() - 1) * double(clean.time_increment);
+    if (!std::isfinite(duration) || duration < 0 || duration > 0.5) return;
+    std::reverse(clean.ranges.begin(), clean.ranges.end());
+    if (clean.intensities.size() == clean.ranges.size())
+      std::reverse(clean.intensities.begin(), clean.intensities.end());
+    clean.angle_min = clean.angle_max;
+    clean.angle_max = m.angle_min;
+    clean.angle_increment = -clean.angle_increment;
+    clean.header.stamp = rclcpp::Time(m.header.stamp) + rclcpp::Duration::from_seconds(duration);
+    clean.time_increment = -clean.time_increment;
+  }
+  if (!scan_.ranges.empty() && rclcpp::Time(clean.header.stamp) <= rclcpp::Time(scan_.header.stamp)) return;
   scan_ = std::move(clean);
   ready_ = true;
 }
