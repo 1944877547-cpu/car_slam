@@ -1,5 +1,7 @@
 # RTAB-Map：激光＋RGB-D 三维建图与定位
 
+当前分支：`RTAB-MAP`；原Cartographer方案位于 `cartographer` 分支。
+
 适用：Orin NX、ROS 2 Humble、N10 雷达、SV1301S_U3 深度相机及现有编码器＋IMU底盘。
 以下命令在 NX 的 `~/car_swarm` 工程中执行，启动 RViz 和键盘控制请使用 NX 桌面终端。
 
@@ -11,6 +13,11 @@
 先将包含 `src/mycar_rtabmap` 的源码同步到 NX，并退出运行中的底盘、建图和导航程序。
 
 ```bash
+cd ~/car_swarm
+git fetch origin
+git switch RTAB-MAP
+git pull --ff-only origin RTAB-MAP
+
 sudo apt update
 sudo apt install -y ros-humble-rtabmap-ros
 

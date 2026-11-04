@@ -1,6 +1,6 @@
 # car_slam：NX 全流程指令
 
-适用于 **Orin NX + Ubuntu 22.04 + ROS 2 Humble**。仓库为 `1944877547-cpu/car_slam`，当前代码位于 `cartographer` 分支。
+适用于 **Orin NX + Ubuntu 22.04 + ROS 2 Humble**。仓库为 `1944877547-cpu/car_slam`，当前分支为 `RTAB-MAP`，融合方案使用流程见 [RTAB_MAP.md](RTAB_MAP.md)。本文件保留原Cartographer流程供参考。
 命令沿用 NX 已有目录 `~/car_swarm`；仓库改名无需移动本地目录。更新源码后先执行第 2 步编译。
 以下命令均在 NX 执行；启动 RViz、键盘控制时，使用 NX 桌面内的终端。
 
