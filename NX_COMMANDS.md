@@ -27,6 +27,16 @@ id -nG
 
 首次使用或更新源码后重新编译，完成后日常使用可从第 3 步开始。先关闭运行中的建图、底盘或导航程序，再编译。
 
+更新到本分支（从RTAB-MAP切回时，也清理该包的编译产物，数据库保留）：
+
+```bash
+cd ~/car_swarm
+git fetch origin
+git switch cartographer
+git pull --ff-only origin cartographer
+rm -rf build/mycar_rtabmap install/mycar_rtabmap
+```
+
 ```bash
 unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH CMAKE_PREFIX_PATH ROS_PACKAGE_PATH PYTHONPATH LD_LIBRARY_PATH
 source /opt/ros/humble/setup.bash
@@ -184,20 +194,3 @@ python3 tests/check_wheel_odometry.py
 ```
 
 测试使用隔离ROS域和虚拟串口，不访问真实电机设备。
-
-
-## 激光＋深度相机三维建图 / 图像重定位
-
-先安装 `sudo apt install -y ros-humble-rtabmap-ros`，按第2步重新编译并加载环境。
-与原Cartographer/AMCL模式分别运行。相机外参在URDF的 `camera_joint`，当前前5cm、上2cm、镜头水平朝前。
-
-```bash
-# 三维建图，原键盘指令继续使用；停车后Ctrl+C正常退出以保存数据库。
-ros2 launch mycar_rtabmap mapping.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
-
-# 下次加载三维数据库，图像重定位并启动Nav2（先退出建图）。
-ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
-```
-
-三维图 `/rtabmap/cloud_map`，二维投影 `/map`；请保留 `.db`，PGM/YAML没有图像和三维数据。
-新地图使用新的数据库名。完整检查与相机配置见 `docs/USAGE.md` 的RTAB-Map部分。
