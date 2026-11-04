@@ -7,3 +7,7 @@
 /nx_build_*.log
 /Log/
 /*_crash_stack_trace_*.log
+
+# RTAB-Map运行时地图数据库
+/maps/*.db
+/maps/*.db-*

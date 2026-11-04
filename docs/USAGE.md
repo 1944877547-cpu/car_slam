@@ -147,3 +147,107 @@ IMU使用本组有效陀螺仪帧的NX接收时刻。EKF预测到当前ROS时间
 STM32毫秒值不能直接当作ROS绝对时间；串口与控制周期仍有小量延迟，这不是硬件同步。
 N10仍约10Hz，整圈结束时间戳，`time_increment` 与 `scan_time` 为0，没有扫描运动补偿。
 时间检查只能检查扫描参考时刻的TF覆盖，不能证明每束激光采样已同步。AMCL的 `map → odom` 含前置有效期，不能要求所有时间戳数值相同。
+
+
+## 激光＋RGB-D三维建图与图像重定位（RTAB-Map）
+
+新增包 `mycar_rtabmap`，使用现有轮式＋IMU EKF的 `odom -> base_link`，RGB-D与N10激光共同输入RTAB-Map。
+图像检索回环候选，RGB-D与激光ICP验证匹配并优化位姿图；深度形成三维地图。车辆仍采用平面运动约束。
+该模式只由RTAB-Map发布 `map -> odom`，不同时启动Cartographer或AMCL。
+原有激光建图和导航命令仍可使用；每次只运行一种模式。
+
+NX安装依赖并编译：
+
+```bash
+sudo apt update
+sudo apt install -y ros-humble-rtabmap-ros
+cd ~/car_swarm
+source /opt/ros/humble/setup.bash
+CMAKE_BUILD_PARALLEL_LEVEL=2 MAKEFLAGS=-j2 colcon build --executor sequential --cmake-args -DBUILD_TESTING=OFF
+source install/local_setup.bash
+```
+
+相机为SV1301S_U3（Astra Stereo S U3），采集规格沿用仓库内官方 `astra_stereo_u3.launch.py`：
+彩色640×480、深度640×400、30FPS；驱动将深度对齐到彩色相机。
+在 `src/mycar_rtabmap/config/camera.yaml` 调整相机规格；实际支持规格可通过下列命令查看，查看前先关闭相机节点：
+
+```bash
+ros2 run orbbec_camera list_camera_profile
+```
+
+相机外参在 `src/mycar_base/urdf/mycar.urdf.xacro` 的 `camera_joint`：
+`xyz="0.05 0 0.02"`，单位米；按左右居中、镜头水平朝前配置（RPY全0）。
+车体到 `camera_link` 由URDF发布；相机内部光学坐标和标定外参由SDK发布。
+镜头俯仰或安装侧移时修改这一处，不要再重复发布相同TF。
+
+先单独确认相机能输出真实深度：
+
+```bash
+ros2 launch mycar_rtabmap camera.launch.py
+```
+
+另一个加载环境的终端检查：
+
+```bash
+ros2 topic hz /camera/color/image_raw
+ros2 topic hz /camera/depth/image_raw
+ros2 topic echo /camera/color/camera_info --once
+ros2 topic echo /camera/depth/image_raw --once --field header
+```
+
+深度非零值、距离单位、彩深对齐与时间差还需在NX实机验证。ROS话题名存在不等于深度可用。
+关闭单独的相机节点，再启动完整建图（包含底盘、相机、雷达、同步节点、RTAB-Map和RViz）：
+
+```bash
+ros2 launch mycar_rtabmap mapping.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
+```
+
+新终端加载环境后使用原键盘遥控指令。建图节点默认1Hz更新关键帧，输入相机仍为30FPS，雷达约10Hz。
+RViz中 `/rtabmap/cloud_map` 是三维地图，`/map` 是供Nav2使用的二维投影。
+地图数据库同时保存关键帧图像、深度、激光及位姿图；停车并Ctrl+C正常退出后保存到指定 `.db`。
+默认不会删除旧数据库；创建另一张地图时换一个新数据库文件名。
+只保存PGM/YAML不能保留三维数据和图像重定位信息，须保留 `.db`。
+
+加载数据库做重定位（不导航）：
+
+```bash
+ros2 launch mycar_rtabmap mapping.launch.py localization:=true database:="$HOME/car_swarm/maps/rtabmap.db"
+```
+
+加载数据库并启动Nav2：
+
+```bash
+ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
+```
+
+RTAB-Map从已保存图像检索地点，通过RGB-D和激光验证重定位。镜头先朝向建图时见过且纹理清楚的区域；
+必要时用RViz的2D Pose Estimate提供初始位置，定位匹配成功后再使用Nav2 Goal。
+Nav2沿用当前速度、车体轮廓与雷达避障配置，本次没有加入新的相机实时避障层。
+
+检查：
+
+```bash
+ros2 topic echo /rtabmap/info --once
+ros2 topic info /map
+ros2 run tf2_ros tf2_echo base_link camera_link
+ros2 run tf2_ros tf2_echo base_link camera_color_optical_frame
+ros2 run tf2_ros tf2_echo map odom
+```
+
+`loop_closure_id` 非0表示接受了回环；加载数据库后的地点匹配属于重定位。
+程序使用系统ROS时间、相机SDK主机时间域和有限的近似同步窗口，不重写已有激光/IMU时间戳。
+RGB与深度同步窗口20ms；RGB-D与激光同步窗口60ms。窗口为接收时间匹配条件，不等于硬件同步。
+实机如因时间差持续收不到输入，应先检查采集时间和USB负载，不能靠无限增大队列掩盖问题。
+
+参考：[RTAB-Map ROS 2](https://github.com/introlab/rtabmap_ros)、
+[激光与RGB-D示例](https://github.com/introlab/rtabmap_ros/blob/ros2/rtabmap_demos/launch/robot_mapping_demo.launch.py)。
+
+
+软件回归（合成数据、隔离ROS域，不打开硬件，不发布运动指令）：
+
+```bash
+python3 tests/check_rgbd_mapping.py "$(mktemp -d /tmp/mycar_rgbd_check.XXXXXX)"
+```
+
+需要Python OpenCV和NumPy。该测试检查多传感器数据入图、真实三维点云、二维投影、数据库定位及传感器断流等待；
+合成场景中的近邻匹配不等同于实际环境的全局图像回环，真实相机重访回环效果仍需实测。

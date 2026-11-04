@@ -184,3 +184,20 @@ python3 tests/check_wheel_odometry.py
 ```
 
 测试使用隔离ROS域和虚拟串口，不访问真实电机设备。
+
+
+## 激光＋深度相机三维建图 / 图像重定位
+
+先安装 `sudo apt install -y ros-humble-rtabmap-ros`，按第2步重新编译并加载环境。
+与原Cartographer/AMCL模式分别运行。相机外参在URDF的 `camera_joint`，当前前5cm、上2cm、镜头水平朝前。
+
+```bash
+# 三维建图，原键盘指令继续使用；停车后Ctrl+C正常退出以保存数据库。
+ros2 launch mycar_rtabmap mapping.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
+
+# 下次加载三维数据库，图像重定位并启动Nav2（先退出建图）。
+ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
+```
+
+三维图 `/rtabmap/cloud_map`，二维投影 `/map`；请保留 `.db`，PGM/YAML没有图像和三维数据。
+新地图使用新的数据库名。完整检查与相机配置见 `docs/USAGE.md` 的RTAB-Map部分。

@@ -1,0 +1,30 @@
+/**:
+  ros__parameters:
+    frame_id: base_link
+    map_frame_id: map
+    # 在传感器时间查询现有EKF的TF，不启动第二套里程计。
+    odom_frame_id: odom
+    publish_tf: true
+    subscribe_depth: false
+    subscribe_rgb: false
+    subscribe_rgbd: true
+    subscribe_scan: true
+    subscribe_odom_info: false
+    approx_sync: true
+    approx_sync_max_interval: 0.06
+    topic_queue_size: 10
+    sync_queue_size: 20
+    qos_image: 2
+    qos_scan: 2
+    wait_for_transform: 0.2
+    # RTAB-Map核心参数必须使用字符串。
+    # 图像检索回环候选，RGB-D几何验证后再由激光ICP精配准。
+    Reg/Strategy: "2"
+    Reg/Force3DoF: "true"
+    Rtabmap/ImagesAlreadyRectified: "false"
+    Rtabmap/DetectionRate: "1.0"
+    # 三维局部栅格同时使用深度与激光；仍可投影为Nav2所用二维/map。
+    Grid/Sensor: "2"
+    Grid/3D: "true"
+    Grid/CellSize: "0.05"
+    RGBD/OptimizeFromGraphEnd: "false"
