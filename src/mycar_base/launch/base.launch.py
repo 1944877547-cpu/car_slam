@@ -60,11 +60,6 @@ def generate_launch_description():
                           'use_sim_time': args['use_sim_time'],
                           'output': 'screen', 'log_level': 'warn'}.items(),
     )
-    laser_odom = Node(
-        package='rf2o_laser_odometry', executable='rf2o_laser_odometry_node',
-        name='rf2o_laser_odometry', output='screen',
-        parameters=[share + '/config/laser_odom.yaml', {'use_sim_time': sim}],
-    )
     ekf = Node(
         package='robot_localization', executable='ekf_node', name='ekf_filter_node', output='screen',
         parameters=[share + '/config/ekf.yaml', {'use_sim_time': sim}],
@@ -78,7 +73,7 @@ def generate_launch_description():
     handlers = [RegisterEventHandler(OnProcessExit(
         target_action=node,
         on_exit=[EmitEvent(event=Shutdown(reason='A base node exited'))],
-    )) for node in [control, imu, laser_odom, ekf]]
+    )) for node in [control, imu, ekf]]
     return LaunchDescription(
         [DeclareLaunchArgument(name, default_value=value) for name, value in defaults.items()]
-        + handlers + [state, control, imu, lidar, laser_odom, ekf] + spawners)
+        + handlers + [state, control, imu, lidar, ekf] + spawners)

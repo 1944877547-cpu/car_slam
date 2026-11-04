@@ -10,13 +10,13 @@ diff_drive_controller:
   ros__parameters:
     left_wheel_names: [left_wheel_joint]
     right_wheel_names: [right_wheel_joint]
-    # 初始几何参数，需按实车修改，并与 URDF 保持一致。
+    # 与实车及 URDF 一致的轮距、轮半径。
     wheel_separation: 0.125
     wheel_radius: 0.0325
     wheel_separation_multiplier: 1.0
     left_wheel_radius_multiplier: 1.0
     right_wheel_radius_multiplier: 1.0
-    open_loop: true  # ROS不接收轮反馈；/odom_raw只作指令估算对照，不进入EKF。
+    open_loop: false  # 根据STM32回传的真实累计编码器位置计算/odom_raw。
     position_feedback: true
     enable_odom_tf: false
     publish_rate: 50.0

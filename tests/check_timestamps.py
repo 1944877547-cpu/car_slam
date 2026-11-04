@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""只监听数据和查询参数：检查时间域、倒序、RF2O时间和TF覆盖，不控制电机。"""
+"""只监听数据和查询参数：检查轮式/IMU时间域、倒序和TF覆盖，不控制电机。"""
 import argparse
 import json
 import time
@@ -25,7 +25,7 @@ def main():
     args = parser.parse_args(remove_ros_args()[1:])
     rclpy.init()
     node = rclpy.create_node('timestamp_check')
-    samples = {t: [] for t in ('/scan', '/imu/data', '/odom_lidar', '/odom')}
+    samples = {t: [] for t in ('/scan', '/imu/data', '/odom_raw', '/odom')}
     tf_stamps = set()
     buffer = Buffer()
     listener = TransformListener(buffer, node)
@@ -41,7 +41,7 @@ def main():
     subs = [node.create_subscription(kind, topic, lambda m, t=topic: receive(t, m),
                                      qos_profile_sensor_data)
             for topic, kind in (('/scan', LaserScan), ('/imu/data', Imu),
-                                ('/odom_lidar', Odometry), ('/odom', Odometry))]
+                                ('/odom_raw', Odometry), ('/odom', Odometry))]
     subs.append(node.create_subscription(TFMessage, '/tf', transforms, 100))
     deadline = time.monotonic() + max(3.0, args.seconds)
     while time.monotonic() < deadline:
@@ -66,18 +66,7 @@ def main():
         if max(ages) > limit:
             errors.append(topic + ': excessive message age')
 
-    # 正角度扫描沿用输入时间；顺时针扫描经RF2O反转后取最后一束时间。
     scans = samples['/scan']
-    laser = samples['/odom_lidar']
-    if scans and laser:
-        references = [ns(s.header.stamp) +
-                      (round((len(s.ranges)-1)*s.time_increment*1e9)
-                       if s.angle_increment < 0 else 0) for s, _ in scans]
-        compared = [m for m, _ in laser if ns(m.header.stamp) >= min(references)]
-        good = sum(min(abs(ns(m.header.stamp)-t) for t in references) <= 2000 for m in compared)
-        report['rf2o_scan_stamp_matches'] = [good, len(compared)]
-        if not compared or good / len(compared) < 0.95:
-            errors.append('RF2O stamp does not match its source scan')
 
     odom = samples['/odom']
     if odom:
@@ -113,7 +102,7 @@ def main():
                 errors.append(target + ' TF cannot cover scan first/last ray: ' + failure)
 
     required = {'/x10/lslidar_driver_node', '/imu_driver_node',
-                '/rf2o_laser_odometry', '/ekf_filter_node'}
+                '/controller_manager', '/ekf_filter_node'}
     optional = {'/cartographer_node', '/amcl', '/controller_server', '/planner_server',
                 '/robot_state_publisher', '/controller_manager', '/rviz2'}
     for name in sorted(required | (optional & present)):

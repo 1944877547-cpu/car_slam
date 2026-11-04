@@ -72,7 +72,7 @@
   <joint name="imu_tracking_joint" type="fixed">
     <parent link="base_link"/>
     <child link="imu_tracking"/>
-    <origin xyz="0 0 0.10"/>
+    <origin xyz="0 0 0"/>
   </joint>
   <link name="imu_link"/>
   <joint name="imu_joint" type="fixed">
@@ -86,8 +86,9 @@
       <plugin>mycar_base/MyCarSystem</plugin>
       <param name="serial_port">$(arg serial_port)</param>
       <param name="baud_rate">$(arg baud_rate)</param>
-      <!-- 最大目标RPM；编码器测速与轮速PI在STM32内部完成。 -->
+      <!-- RPM控速在STM32完成，真实编码器计数回传ROS计算里程计。 -->
       <param name="max_rpm">$(arg max_rpm)</param>
+      <param name="encoder_cpr">1468.2</param>
       <param name="feedback_timeout_ms">500</param>
     </hardware>
     <joint name="left_wheel_joint">

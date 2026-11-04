@@ -2,9 +2,6 @@ ekf_filter_node:
   ros__parameters:
     frequency: 50.0
     sensor_timeout: 0.2
-    # 激光匹配结果晚于IMU到达，按测量时间回溯融合，保留0.5秒历史。
-    smooth_lagged_data: true
-    history_length: 0.5
     # 将融合状态预测到当前时刻；/odom和odom->base_link使用同一时间。
     predict_to_current_time: true
     transform_time_offset: 0.0
@@ -16,10 +13,10 @@ ekf_filter_node:
     odom_frame: odom
     base_link_frame: base_link
     world_frame: odom
-    # 平移速度来自连续激光扫描，转向角速度融合激光与IMU。
-    # 同一次扫描的位置和速度相关，只融合速度，避免重复使用同一信息。
+    # 轮式里程计提供前向速度、侧向零速度约束和转向角速度。
+    # 轮位置和速度同源，只融合速度，避免重复融合。
     # 顺序：x y z / roll pitch yaw / vx vy vz / vroll vpitch vyaw / ax ay az。
-    odom0: /odom_lidar
+    odom0: /odom_raw
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true,  false,

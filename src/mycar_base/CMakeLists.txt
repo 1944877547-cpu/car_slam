@@ -33,7 +33,8 @@ install(DIRECTORY include/ DESTINATION include)
 install(CODE [[
   file(REMOVE
     "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/mycar_base/scan_deskew"
-    "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/mycar_base/config/deskew.yaml")
+    "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/mycar_base/config/deskew.yaml"
+    "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/mycar_base/config/laser_odom.yaml")
 ]])
 install(DIRECTORY config launch urdf DESTINATION share/${PROJECT_NAME})
 

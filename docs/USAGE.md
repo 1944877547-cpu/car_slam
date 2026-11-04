@@ -1,22 +1,17 @@
 # car_slam 使用与调参
 
-下文沿用已有工作空间目录 `~/car_swarm`。新克隆目录为 `~/car_slam` 时，请相应替换命令中的工作空间路径。
+ROS 2 Humble 双轮差速小车，配合 `~/STM32Cube/car_swarm` 的 STM32 + TB6612 固件。
+命令沿用 `~/car_swarm`，新克隆目录不同时相应替换路径。
 
-ROS 2 Humble 双轮差速小车上位机，配合 `~/STM32Cube/car_swarm` 的 STM32 + TB6612 固件。
+- `mycar_base`：RPM串口控制、真实编码器反馈、轮式里程计、IMU和EKF。
+- `mycar_cartographer`：N10激光、融合里程计和IMU建图，可同时打开RGB。
+- `mycar_navigation2`：AMCL地图定位和Nav2导航。
+- `wit_ros2_imu`、`lslidar_driver`、`orbbec`：传感器驱动。
 
-- `mycar_base`：差速控制、HEX RPM 串口、雷达、激光里程计、IMU 和 EKF。
-- `rf2o_laser_odometry`：RF2O 扫描匹配，输入 `/scan`，输出 `/odom_lidar`，保留上游源码和许可证。
-- `mycar_cartographer`：N10 雷达 + IMU 建图。
-- `mycar_navigation2`：Nav2 导航。
-- `wit_ros2_imu`：从 `imu_test` 当前使用的维特驱动复制而来。
+## 编译与环境
 
-**ROS定位不使用轮编码器：平移来自激光扫描匹配，转向角速度融合激光与 IMU，EKF 输出 `/odom`。** 编码器仅用于STM32轮速PI闭环，`/odom_raw` 保留为指令估算对照，不进入 EKF。激光速度与位置来自同一次匹配，EKF 只融合速度，避免重复使用同一信息。
-
-IMU 不做加速度双积分位置；当前模块姿态尚未验证，EKF 不融合它的姿态。`/imu/data` 姿态协方差首项保持 `-1`，`/imu/angle` 仍提供原始角度供核对。
-
-## 编译
-
-在新终端执行，避免混入 `my_roscar` 等同名包的旧环境：
+使用新终端，只加载系统Humble与本工作空间，不加载预装的 `wheeltec_ros2`。
+PC与NX分别编译，不互相复制不同CPU架构的 `build/install/log`。
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -25,85 +20,65 @@ CMAKE_BUILD_PARALLEL_LEVEL=2 MAKEFLAGS=-j2 colcon build --executor sequential --
 source install/local_setup.bash
 ```
 
-依赖 ROS 2 Humble、ros2_control、robot_localization、Cartographer、Nav2 和 Python 的 pyserial。新设备需要先安装相应依赖。
-
-## 新设备依赖
-
-PC 与 NX 分别在本机编译，不复制另一种 CPU 架构的 `build/install/log`。RF2O 源码已包含在工程中。新增依赖为 Eigen3 和 ROS 的 Eigen CMake 模块：
-
-```bash
-sudo apt install -y libeigen3-dev ros-humble-eigen3-cmake-module
-```
-
-其他依赖包含 ros2_control、robot_localization、Cartographer、Nav2、雷达、相机驱动及 pyserial。当前工作空间已具备依赖时，直接执行上面的编译命令。
-串口用户需要在 `dialout` 组；新增组权限后需注销并重新登录。
+需要ros2_control、robot_localization、Cartographer、Nav2、传感器驱动及pyserial。
+串口用户需要在 `dialout` 组，新增权限后注销并重新登录。
+每个新终端加载 `/opt/ros/humble/setup.bash` 和 `~/car_swarm/install/local_setup.bash`。
 
 ## 启动
 
-每个新终端先执行：
+下面任选一种，不能重复打开同一串口：
 
 ```bash
-source /opt/ros/humble/setup.bash
-source ~/car_swarm/install/local_setup.bash
-```
-
-请使用新终端。当前只加载系统 ROS Humble 和本工程，不加载预装的 `wheeltec_ros2`。
-直接加载环境会保留其他已配置的 Python 和动态库路径，无需单独的启动脚本。
-`ros2 pkg prefix nav2_map_server` 应输出 `/opt/ros/humble`。
-
-当前导航指令上限：直行 0.20 m/s、转向 1.20 rad/s；导航线加速度 0.50 m/s²、角加速度 2.00 rad/s²。实际速度需要实车标定。
-
-本机 NX 的默认端口：STM32 为 `/dev/ttyCH341USB0`，IMU 为 `/dev/ttyTHS1`，两者均为 115200、8N1；N10 雷达为 `/dev/ttyCH343USB0`。建图和导航可用 `lidar_port:=设备路径` 单独覆盖雷达端口。
-
-下面三种启动方式选择一种，均包含底盘、雷达、RF2O、IMU 和 EKF，勿重复启动或重复打开串口：
-
-```bash
-# 底盘与传感器；需要雷达数据才能得到平移里程计。
+# 底盘、轮式里程计、雷达、IMU、EKF。
 ros2 launch mycar_base base.launch.py
 
-# 建图；串口参数与上面相同。
+# 建图，同时打开普通RGB画面。
 ros2 launch mycar_cartographer mapping.launch.py
 
-# 导航；使用已保存的地图。
+# 导航，加载已有地图。
 ros2 launch mycar_navigation2 navigation.launch.py map:="$HOME/car_swarm/maps/map.yaml"
 ```
 
-建图后保存地图：
+默认STM32 `/dev/ttyCH341USB0`、IMU `/dev/ttyTHS1`，均为115200/8N1；N10为 `/dev/ttyCH343USB0`。
+可添加 `serial_port:=设备路径`、`lidar_port:=设备路径`、`imu_port:=设备路径`。
+已有外部 `/scan` 时添加 `start_lidar:=false`。轮式里程计不依赖雷达，建图/导航仍需要有效扫描。
 
-```bash
-mkdir -p ~/car_swarm/maps
-ros2 run nav2_map_server map_saver_cli -t /map -f "$HOME/car_swarm/maps/map" --ros-args -p save_map_timeout:=10.0
+## 里程计与TF
+
+```text
+STM32真实累计编码器 → ROS关节位置 → diff_drive_controller → /odom_raw
+/odom_raw + /imu/data角速度 → robot_localization EKF → /odom
+/scan → Cartographer / AMCL及Nav2障碍物层
 ```
 
-## 检查和控制
+`open_loop: false`、`position_feedback: true`：关节状态来自真实计数，不能用目标RPM代替。
+累计计数换算轮角度；计数差和STM32采样时间差换算实测轮速。
+EKF融合轮式前向速度、侧向零速度约束、转向角速度和IMU转向角速度，不重复融合轮式位置。
+IMU姿态尚未核实，当前EKF不融合姿态或加速度，不做加速度双积分。
 
-```bash
-ros2 topic echo /imu/data --once
-ros2 topic echo /odom_lidar --once
-ros2 topic echo /odom --once
-ros2 control list_controllers
+- `odom → base_link`：仅由EKF发布。
+- `map → odom`：建图时Cartographer、导航时AMCL发布。
+- 车体到雷达、IMU：URDF固定安装关系。
 
-# 低速前进；Ctrl+C停止发送后，控制器约0.5秒后清零指令。
-ros2 topic pub -r 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.05}, angular: {z: 0.0}}"
-```
+固件必须配套更新。启动时未收到真实编码器反馈，底盘拒绝激活；反馈中断500ms时停车并报错。
+反馈重复包不能保活；STM32采样时间重启或异常跳变时停止，需要重启底盘入口重新建立基线。
+不会回退到速度指令估算位置。
 
-`/scan → RF2O → /odom_lidar` 提供激光位姿和速度；EKF 融合激光的平面速度、角速度与 IMU 的 Z 轴角速度，输出 `/odom`。`/odom_raw` 仅为指令估算对照，不是当前导航里程计的输入。只有 EKF 发布 `odom → base_link`，建图或 AMCL 发布 `map → odom`。
+## 参数
 
-雷达驱动集中在底盘入口启动。外部驱动已经提供 `/scan` 时添加 `start_lidar:=false`。初次启动允许等待扫描和 `base_link → laser` 静态 TF 最多 30 秒；正常运行后连续 1 秒没有有效激光里程计，RF2O 退出并关闭当前底盘启动组。没有命令估算回退。扫描匹配在走廊、空旷或大量动态障碍物场景中可能退化，需要实车确认。
+- 轮半径 **0.0325m**、轮距 **0.125m**：`controllers.yaml` 与 `mycar.urdf.xacro` 保持一致。
+- 每圈四倍频计数 **1468.2**：Xacro的 `encoder_cpr` 与STM32的 `ENC_CPR` 保持一致。
+- 左编码器A/B：PB8/PB9；右编码器A/B：PB6/PB7。手转前进时两轮累计计数都应增加。
+- STM32轮速PI保持 `KP=7`、`KI=18`，控制周期10ms，PWM上限1200、周期3599。实车整定，不添加固定起步补偿。
+- 导航上限0.20m/s、1.20rad/s，加速度0.50m/s²、2.00rad/s²；本次不改变导航参数。
+- IMU安装x右、y后、z下；`imu_joint` RPY为 `3.1415926536 0 -1.5707963268`。角速度经TF转换到车体坐标后融合。
+- IMU与车体基准同高，位置在 `imu_tracking_joint`；雷达位置在 `laser_joint`，当前相对车体高0.20m。
+- IMU默认请求20Hz，以 `ros2 topic hz /imu/data` 实测为准。
+- 轮式协方差在 `controllers.yaml`、IMU协方差在驱动中，按实测噪声调整。
 
-## 首次需要调整
+## STM32串口协议
 
-- 轮半径初值 **0.0325 m**、轮距初值 **0.125 m**：同时修改 `src/mycar_base/config/controllers.yaml` 和 `src/mycar_base/urdf/mycar.urdf.xacro`。
-- `max_rpm` 默认 **100**，是左右轮目标RPM上限；不再在ROS中把RPM映射成PWM。编码器每圈计数、方向和PI参数在STM32内标定。上位机不接收实测轮速或编码器计数。
-- IMU 当前安装为 x 向车体右侧、y 向车尾、z 向下，Xacro 的 `imu_joint` 已设置 `rpy="3.1415926536 0 -1.5707963268"`。从上方看车体逆时针转动时，原始 IMU 的 z 角速度为负，经 TF 转换后的 `/odom` z 角速度为正。与车体同向的 `imu_tracking` 与传感器原点重合，供 Cartographer 使用；安装位置需在 `imu_tracking_joint` 的 `xyz` 中按实车测量。
-- IMU 默认请求 20 Hz，与当前实测一致；用 `ros2 topic hz /imu/data` 验证实际频率。当前设备在请求 100 Hz 后仍输出 20 Hz，且未回复寄存器查询；需要进一步核对 NX TX 到 IMU RX 的接线以及模块型号和配置协议，再提高 `imu_rate`。波特率为 115200。
-- 激光安装位置、朝向在 Xacro 的 `laser_joint` 中测量设置；当前保留 `xyz="0 0 0.2"`，表示相对 `base_link` 高 20cm。
-- `src/mycar_base/config/laser_odom.yaml` 中的 `linear_variance`、`angular_variance` 是方差初值，按实际匹配噪声调整。
-- STM32用编码器做轮速闭环；定位仍来自RF2O和IMU，`/odom_raw`保持指令估算对照，不能用于融合。
-
-## STM32 通信
-
-发送和ACK都是8字节HEX，左右字段为有符号16位大端数，**单位0.1 RPM**，有效目标范围为−100～+100 RPM：
+下发保持8字节，有符号16位大端数，单位 **0.1 RPM**，最大±100RPM，每20ms发送：
 
 ```text
 AA 55 左高 左低 右高 右低 0D 0A
@@ -111,89 +86,64 @@ AA 55 01 2C FE D4 0D 0A    左+30.0 RPM，右-30.0 RPM
 AA 55 00 00 00 00 0D 0A    停车
 ```
 
-上位机以50 Hz下发目标RPM。STM32用PB6/PB7（左A/B）、PB8/PB9（右A/B）中断计数，TIM2以100 Hz做双轮PI控制，TIM3仍在PA6/PA7输出PWM，周期3599、输出上限1200。0和500ms通信超时停车。ACK仅回显接受的目标RPM，不是实测速度；与旧PWM字段不兼容，必须配套更新两端。`ENC_CPR`默认0，接线并实测车轮每圈四倍频计数后填写，未标定时电机保持关闭。引脚信号按3.3V TTL处理，具体供电以编码器规格为准。
+反馈为17字节，每20ms主动发送，无运动指令时也回传：
 
-## 建图时显示 RGB 相机
-
-Orbbec 驱动从本机 `~/orbbec_ws/src/OrbbecSDK_ROS2-main` 引入到 `src/orbbec`，
-保留驱动 1.5.15 和 SDK 1.10.35 的源码、许可证及 ARM64/x64 库，需在目标机器编译。
-当前相机识别为 `SV1301S_U3`，默认彩色流为 **640×480、30 FPS、MJPG**。
-
-首次接入后编译：
-
-```bash
-source /opt/ros/humble/setup.bash
-cd ~/car_swarm
-CMAKE_BUILD_PARALLEL_LEVEL=2 MAKEFLAGS=-j2 colcon build --executor sequential --packages-select orbbec_camera_msgs orbbec_camera mycar_cartographer --cmake-args -DBUILD_TESTING=OFF
-source install/local_setup.bash
-ros2 launch mycar_cartographer mapping.launch.py
+```text
+AA 66 T0 T1 T2 T3 L0 L1 L2 L3 R0 R1 R2 R3 SUM 0D 0A
 ```
 
-建图启动后，RViz 自动增加 `RGB` 图像窗口，订阅 `/camera/color/image_raw`。
-相机只用于观看彩色画面；深度、红外、点云和相机内置 IMU 均关闭，不参与建图算法。
-关闭建图启动终端会同时关闭相机。需要临时停用相机时：
+T为无符号32位STM32毫秒计数，L/R为有符号32位累计编码器计数，均为大端。
+SUM为前14字节相加的低8位。累计计数和毫秒差分支持32位回绕。
+反馈不是目标RPM回显，ROS不接受旧8字节ACK作为轮反馈，必须两端同时更新。
+STM32保留零速和500ms命令超时停车；每圈计数设为0时禁止驱动。
+
+## 检查与控制
 
 ```bash
+ros2 control list_controllers
+ros2 control list_hardware_components
+ros2 topic echo /joint_states --once
+ros2 topic echo /odom_raw --once
+ros2 topic echo /odom --once
+ros2 topic echo /imu/data --once
+ros2 topic hz /odom_raw
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p speed:=0.05 -p turn:=0.3 -r cmd_vel:=/cmd_vel
+```
+
+轮式里程计会响应手推车体；车轮架空旋转也会累计里程，编码器无法独自分辨打滑。
+ROS的 `/cmd_vel` 超时约0.5秒会清零指令，STM32另外独立检查串口命令超时。
+
+## 保存地图与RGB
+
+保持建图运行，另开已加载环境的终端：
+
+```bash
+mkdir -p ~/car_swarm/maps
+ros2 run nav2_map_server map_saver_cli -t /map -f "$HOME/car_swarm/maps/map" --ros-args -p save_map_timeout:=10.0
+```
+
+Orbbec只显示普通RGB，不参与里程计或SLAM；配置640×480、30FPS、MJPG，关闭深度、红外和点云。
+
+```bash
+# 不接相机时。
 ros2 launch mycar_cartographer mapping.launch.py start_camera:=false
-```
-
-单独检查相机（先关闭正在使用相机的建图程序）：
-
-```bash
+# 单独查看RGB。
 ros2 launch mycar_cartographer camera_rgb.launch.py
-```
-
-另一个已加载工作空间的终端可运行 `ros2 topic hz /camera/color/image_raw` 检查帧率。
-当前 NX 已有 Orbbec USB 规则，无需修改 GPIO 权限；其他机器若提示 USB 权限不足，执行一次：
-
-```bash
+# 新设备USB权限配置，执行后重新插拔相机。
 sudo bash ~/car_swarm/src/orbbec/orbbec_camera/scripts/install_udev_rules.sh
 ```
 
-执行后重新插拔相机。RGB 图像显示无需相机外参；以后将深度或视觉加入算法时，再按实际安装位置配置相机 TF。
-
-## PC 离线验证激光里程计
-
-先完成编译、加载系统 ROS 与 `install/local_setup.bash`，再执行：
+## 离线模拟与时间检查
 
 ```bash
-python3 tests/check_laser_odometry.py
-```
-
-测试使用独立 ROS 域和合成扫描，不启动电机或真实串口，覆盖平移、转动安装偏移、TF 延迟、错误输入和断流退出。
-
-## N10 扫描输出
-
-N10 的组帧、角度转换和时间处理与 `ros_car_diff` 原驱动一致，整圈点云转换为 `/scan`。
-角度按 `-π` 到 `π` 排列，`angle_increment` 为正；不再使用新增的 N10 角度格子重建或按4500点/秒回推逐点时间。
-扫描时间戳使用原驱动估计的整圈末端时间，`time_increment` 和 `scan_time` 均为0，表示未提供逐点时间间隔和整圈周期。
-N10 仍在接收线程发布完整一圈，避免共享缓冲被下一圈覆盖；不做运动补偿。
-
-```bash
-timeout 10s ros2 topic hz /scan
-ros2 topic echo /scan --once --field scan_time
-ros2 topic echo /scan --once --field time_increment
-```
-
-实际扫描频率仍约10Hz，以 `ros2 topic hz /scan` 为准，不能由值为0的 `scan_time` 计算。
-`N10Plus_hz` 仅用于N10Plus配置，不能改变N10的真实转速。
-
-## 时间戳检查
-
-实车运行统一使用系统时钟（`use_sim_time:=false`），雷达、IMU和算法都在NX上打ROS时间戳。
-`/scan` 沿用 `ros_car_diff` 的整圈末端时间，不宣称精确的首束采样时间；逐点时间未提供，无法按消息字段恢复首末束采样时刻。
-RF2O保留输入扫描的时间戳，不会用计算完成时刻覆盖它。
-IMU使用有效帧的接收时刻，`/imu/data`取本组陀螺仪帧的接收时间，缺少本组加速度/陀螺仪帧时不发布旧测量。
-一次读到多组时解析所有数据、发布最新完整组，保留未完成帧供下次接收继续解析；不按固定字节数清空串口，不回推字节传输耗时。
-EKF保留0.5秒历史处理迟到的激光结果，再预测到当前时刻，`/odom`和`odom → base_link`使用相同时间戳。
-AMCL的`map → odom`含`transform_tolerance`的前置有效期，静态TF时间为0也正常，不能要求所有话题时间戳数值相同。
-
-启动底盘、建图或导航后，另开终端检查（只监听，不发送运动指令）：
-
-```bash
+# 隔离ROS域与虚拟串口，不访问真实电机。
+python3 tests/check_wheel_odometry.py
+# 底盘、建图或导航运行后，只监听时间戳与TF。
 python3 tests/check_timestamps.py --seconds 10
 ```
 
-输出`passed: true`表示本次采样的时钟设置、时间顺序、RF2O扫描时间对应关系、里程计TF和扫描参考时间的TF覆盖检查通过。
-当前N10未提供逐点时间，该检查不能验证整圈内每一束的TF覆盖。
-雷达和此IMU协议均未提供可用的硬件采样时间，这项检查不能证明物理采样已硬同步；内部滤波、USB缓冲等残余延迟需在NX实测。
+实车 `use_sim_time:=false`。轮式里程计按ROS控制周期打时间戳；轮速计算采用反馈内STM32采样时间差。
+IMU使用本组有效陀螺仪帧的NX接收时刻。EKF预测到当前ROS时间，`/odom`与TF同一时间戳，不人为添加时间偏移。
+STM32毫秒值不能直接当作ROS绝对时间；串口与控制周期仍有小量延迟，这不是硬件同步。
+N10仍约10Hz，整圈结束时间戳，`time_increment` 与 `scan_time` 为0，没有扫描运动补偿。
+时间检查只能检查扫描参考时刻的TF覆盖，不能证明每束激光采样已同步。AMCL的 `map → odom` 含前置有效期，不能要求所有时间戳数值相同。

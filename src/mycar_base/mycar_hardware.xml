@@ -4,6 +4,6 @@
     name="mycar_base/MyCarSystem"
     type="mycar_base::MyCarSystem"
     base_class_type="hardware_interface::SystemInterface">
-    <description>HEX RPM differential-drive hardware; encoder control stays on STM32.</description>
+    <description>HEX RPM control with timestamped wheel encoder feedback for odometry.</description>
   </class>
 </library>
