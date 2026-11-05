@@ -20,16 +20,24 @@
     # RTAB-Map中2表示Best Effort，可接收可靠或尽力而为传感器发布者。
     qos_image: 2
     qos_scan: 2
-    wait_for_transform: 0.2
+    wait_for_transform: 0.5
     # RTAB-Map核心参数必须使用字符串。
     # 图像检索回环候选，RGB-D几何验证后再由激光ICP精配准。
     Reg/Strategy: "2"
     # 地面车只优化x/y/yaw；这不会把深度点的高度清零。
     Reg/Force3DoF: "true"
+    # 保留视觉回环；相邻节点使用原生配准细化，不修改底盘/EKF里程计。
+    RGBD/NeighborLinkRefining: "true"
+    RGBD/ProximityBySpace: "true"
+    RGBD/ProximityPathMaxNeighbors: "10"
+    # 定位模式使用原生全局激光子地图匹配，减少对当前画面有效深度的依赖。
+    # 此选项在建图模式不启用全局激光地图，仍使用原生局部邻近匹配。
+    RGBD/ProximityGlobalScanMap: "true"
     Rtabmap/ImagesAlreadyRectified: "false"
     # SLAM处理上限1Hz；实际频率取决于同步输入和计算耗时，关键帧按运动情况保存。
     Rtabmap/DetectionRate: "1.0"
-    # 三维局部栅格同时使用深度与激光；仍可投影为Nav2所用二维/map。
+    # 三维地图同时使用深度与激光；其二维投影另存为/rtabmap/projected_map。
+    # Nav2的/map由navigation_map.yaml按激光生成，使用同一份优化位姿图。
     Grid/Sensor: "2"
     Grid/3D: "true"
     Grid/CellSize: "0.05"

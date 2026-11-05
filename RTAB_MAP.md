@@ -2,6 +2,7 @@
 
 适用于NX的 `~/car_swarm`。融合激光与RGB-D，复用编码器＋IMU里程计。
 与Cartographer分别运行，切换前先退出当前建图/导航。原方案见 [cartographer.md](cartographer.md)。
+三维地图保留RGB-D＋激光融合；Nav2的二维栅格按激光生成，共用RTAB-Map优化后的位姿图。
 
 ## 1. 安装、编译和加载环境
 
@@ -41,7 +42,7 @@ ros2 launch mycar_rtabmap mapping.launch.py database:="$HOME/car_swarm/maps/rtab
 ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p speed:=0.05 -p turn:=0.3 -r cmd_vel:=/cmd_vel
 ```
 
-RViz：`/rtabmap/cloud_map`为三维地图，`/map`为二维投影。停车后先退出遥控，再在终端A按 `Ctrl+C`，等待 `.db`保存完成。
+RViz：`/rtabmap/cloud_map`为三维地图，`/map`为激光导航栅格，深度投影在`/rtabmap/projected_map`。停车后退出遥控，再在终端A按 `Ctrl+C`，等待 `.db`保存完成。
 重定位需要保留数据库；新地图使用新文件名，已有数据库默认继续建图。
 
 ## 3. 重定位与导航（二选一）
@@ -58,7 +59,9 @@ ros2 launch mycar_rtabmap mapping.launch.py localization:=true database:="$HOME/
 ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
 ```
 
-先让镜头看到建图时的场景，必要时使用 `2D Pose Estimate`。确认定位后再用 `Nav2 Goal`。
+先用 `2D Pose Estimate`设置当前所在位置及朝向，确认激光与地图墙面对齐后再用 `Nav2 Goal`。
+保留图像回环，并启用RTAB-Map原生全局激光地图邻近匹配。只有TF存在不代表已重定位成功。
+每次只启动一套完整入口；已有底盘节点时加`start_base:=false`，避免重复占用串口。
 
 ## 4. 参数与检查
 
@@ -67,9 +70,10 @@ ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/r
 | 参数 | 位置 |
 | --- | --- |
 | 处理上限1Hz、配准和地图 | `src/mycar_rtabmap/config/rtabmap.yaml` |
+| 激光导航栅格、旧栅格缓存重建 | `src/mycar_rtabmap/config/navigation_map.yaml` |
 | 彩深对齐、采集规格 | `src/mycar_rtabmap/config/camera.yaml` |
-| 相机前5cm、上2cm，按水平朝前配置 | URDF的 `camera_joint` |
-| 导航前进上限0.25m/s | `src/mycar_navigation2/param/nav2_params.yaml` |
+| 相机安装外参，按实车测量值填写 | URDF的 `camera_joint` |
+| 导航上限0.25m/s，局部/全局膨胀半径0.20m | `src/mycar_navigation2/param/nav2_params.yaml` |
 
 检查命令逐条运行，频率检查用 `Ctrl+C`结束：
 
@@ -82,3 +86,5 @@ ros2 run tf2_ros tf2_echo map base_link
 
 1Hz为处理上限，不保证每秒保存1个关键帧。观察启动日志中的处理耗时、同步丢帧/等待告警和TF等待；每组处理预算约1秒，实际效果需在NX验证。
 相机请求彩色640×480、深度640×400、30FPS；实际支持规格以设备为准。提高处理频率不能替代轮径、轮距和传感器外参标定。
+
+参考：[教程的RTABMap章节](https://gitee.com/gwmunan/ros2/wikis/pages?sort_id=11078218&doc_id=4855084)。教程使用RealSense双目，本工程保留Orbbec RGB-D和轮式＋IMU EKF。

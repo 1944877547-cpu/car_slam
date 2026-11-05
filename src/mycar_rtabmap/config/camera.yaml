@@ -18,7 +18,8 @@
     depth_registration: true
     align_mode: SW
     enable_depth_scale: true
-    enable_frame_sync: true
+    # 本机SV1301S_U3不支持SDK硬件帧同步，RGB-D由rgbd_sync按时间戳配对。
+    enable_frame_sync: false
     # 使用驱动提供的主机时间域，不能将设备开机毫秒当作ROS绝对时间。
     time_domain: system
     enable_ir: false

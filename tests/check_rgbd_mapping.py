@@ -174,6 +174,18 @@ def main():
         assert result['nodes_with_rgb_depth_scan'] > 0, 'Images, depth and scan were not stored together'
         assert node.maps and node.maps[-1].info.width > 0, 'No occupancy /map'
         assert node.clouds and node.clouds[-1].width > 0, 'No 3D cloud_map'
+        # 导航栅格必须来自激光组图，避免又接回含深度噪声的投影地图。
+        publishers = node.get_publishers_info_by_topic('/map')
+        assert len(publishers) == 1 and publishers[0].node_name == 'navigation_map', 'Wrong navigation map source'
+        result['navigation_map_publisher'] = publishers[0].node_namespace + '/' + publishers[0].node_name
+        grid = node.maps[-1]
+        ix = math.floor((node.last_x-grid.info.origin.position.x)/grid.info.resolution)
+        iy = math.floor(-grid.info.origin.position.y/grid.info.resolution)
+        assert 0 <= ix < grid.info.width and 0 <= iy < grid.info.height, 'Robot outside navigation map'
+        result['robot_navigation_cell'] = int(grid.data[iy*grid.info.width+ix])
+        assert result['robot_navigation_cell'] == 0, 'Robot marked as obstacle in navigation map'
+        publishers = node.get_publishers_info_by_topic('/rtabmap/cloud_map')
+        assert len(publishers) == 1 and publishers[0].node_name == 'rtabmap', '3D cloud source collision'
         cloud = node.clouds[-1]
         offset = next(f.offset for f in cloud.fields if f.name == 'z')
         z = [struct.unpack_from('<f', cloud.data, i+offset)[0] for i in range(0, len(cloud.data), cloud.point_step)]

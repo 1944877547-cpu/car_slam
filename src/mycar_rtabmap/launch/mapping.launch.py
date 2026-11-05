@@ -54,16 +54,25 @@ def start(context):
             'Mem/IncrementalMemory': 'false' if localization else 'true',
             'Mem/InitWMWithAllNodes': 'true' if localization else 'false',
         }],
-        # 不同版本使用map或grid_map作为二维栅格名，均统一到Nav2的/map。
-        remappings=[('scan', '/scan'), ('map', '/map'), ('grid_map', '/map'),
+        # 深度投影供检查；Nav2的/map由下面的激光栅格输出，避免投影中的地面噪声堵路。
+        remappings=[('scan', '/scan'), ('map', '/rtabmap/projected_map'),
+                    ('grid_map', '/rtabmap/projected_map'),
                     ('initialpose', '/initialpose')],
+    )
+    # 使用同一份优化位姿图和数据库扫描生成导航栅格，不增加第二套定位或TF。
+    # 独立命名空间也隔离其cloud_map等输出，保留上面RTAB-Map的RGB-D三维点云。
+    navigation_map = Node(
+        package='rtabmap_util', executable='map_assembler', name='navigation_map',
+        namespace='rtabmap/navigation_grid', output='screen',
+        parameters=[share + '/config/navigation_map.yaml', {'use_sim_time': sim}],
+        remappings=[('mapData', '/rtabmap/mapData'), ('map', '/map'), ('grid_map', '/map')],
     )
     rviz = Node(
         package='rviz2', executable='rviz2', name='rviz2',
         condition=IfCondition(LaunchConfiguration('start_rviz')), output='screen',
         arguments=['-d', share + '/rviz/rgbd.rviz'], parameters=[{'use_sim_time': sim}],
     )
-    return [base, camera, sync, slam, rviz]
+    return [base, camera, sync, slam, navigation_map, rviz]
 
 
 def generate_launch_description():

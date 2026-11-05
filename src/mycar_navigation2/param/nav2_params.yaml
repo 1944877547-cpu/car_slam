@@ -210,7 +210,7 @@ local_costmap:
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 6.0
-        inflation_radius: 0.15
+        inflation_radius: 0.20
       always_send_full_costmap: false
 
 # 全局代价地图位于map：静态地图层 + 激光障碍层 + 膨胀层。
@@ -248,7 +248,7 @@ global_costmap:
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 6.0
-        inflation_radius: 0.15
+        inflation_radius: 0.20
       always_send_full_costmap: false
 
 # 原AMCL导航使用PGM/YAML地图；RTAB-Map模式直接发布/map，不启动此节点。

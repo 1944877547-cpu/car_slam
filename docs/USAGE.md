@@ -203,7 +203,8 @@ ros2 launch mycar_rtabmap mapping.launch.py database:="$HOME/car_swarm/maps/rtab
 ```
 
 新终端加载环境后使用原键盘遥控指令。RTAB-Map处理上限为1Hz；关键帧是否保存由运动及匹配结果决定，相机请求30FPS，雷达约10Hz。
-RViz中 `/rtabmap/cloud_map` 是三维地图，`/map` 是供Nav2使用的二维投影。
+RViz中 `/rtabmap/cloud_map` 是三维地图。原生`map_assembler`使用同一优化位姿图、从激光生成Nav2的`/map`；深度投影另存为`/rtabmap/projected_map`。
+导航栅格从原始扫描重建缓存，不改写旧数据库，不将旧深度投影中的噪声直接交给规划器。
 地图数据库同时保存关键帧图像、深度、激光及位姿图；停车并Ctrl+C正常退出后保存到指定 `.db`。
 默认不会删除旧数据库；创建另一张地图时换一个新数据库文件名。
 只保存PGM/YAML不能保留三维数据和图像重定位信息，须保留 `.db`。
@@ -221,8 +222,9 @@ ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/r
 ```
 
 RTAB-Map从已保存图像检索地点，通过RGB-D和激光验证重定位。镜头先朝向建图时见过且纹理清楚的区域；
-必要时用RViz的2D Pose Estimate提供初始位置，定位匹配成功后再使用Nav2 Goal。
-Nav2沿用当前速度、车体轮廓与雷达避障配置，本次没有加入新的相机实时避障层。
+重启或换位置后，用RViz的2D Pose Estimate提供当前的位置和朝向，定位匹配成功后再使用Nav2 Goal。
+定位模式还启用原生全局激光地图邻近匹配，图像回环继续保留。
+导航前进上限0.25m/s，局部与全局膨胀半径均为0.20m；实时避障仍使用雷达。
 
 检查：
 
@@ -249,5 +251,5 @@ RGB与深度同步窗口20ms；RGB-D与激光同步窗口60ms。窗口为接收�
 python3 tests/check_rgbd_mapping.py "$(mktemp -d /tmp/mycar_rgbd_check.XXXXXX)"
 ```
 
-需要Python OpenCV和NumPy。该测试检查多传感器数据入图、真实三维点云、二维投影、数据库定位及传感器断流等待；
+需要Python OpenCV和NumPy。该测试检查多传感器数据入图、真实三维点云、激光导航栅格、数据库定位及传感器断流等待；
 合成场景中的近邻匹配不等同于实际环境的全局图像回环，真实相机重访回环效果仍需实测。
