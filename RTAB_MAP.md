@@ -69,7 +69,7 @@ ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/r
 | 处理上限1Hz、配准和地图 | `src/mycar_rtabmap/config/rtabmap.yaml` |
 | 彩深对齐、采集规格 | `src/mycar_rtabmap/config/camera.yaml` |
 | 相机前5cm、上2cm，按水平朝前配置 | URDF的 `camera_joint` |
-| 导航前进上限0.30m/s | `src/mycar_navigation2/param/nav2_params.yaml` |
+| 导航前进上限0.25m/s | `src/mycar_navigation2/param/nav2_params.yaml` |
 
 检查命令逐条运行，频率检查用 `Ctrl+C`结束：
 
