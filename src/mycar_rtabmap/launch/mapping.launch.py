@@ -70,7 +70,7 @@ def start(context):
     rviz = Node(
         package='rviz2', executable='rviz2', name='rviz2',
         condition=IfCondition(LaunchConfiguration('start_rviz')), output='screen',
-        arguments=['-d', share + '/rviz/rgbd.rviz'], parameters=[{'use_sim_time': sim}],
+        arguments=['-d', LaunchConfiguration('rviz_config')], parameters=[{'use_sim_time': sim}],
     )
     return [base, camera, sync, slam, navigation_map, rviz]
 
@@ -82,6 +82,8 @@ def generate_launch_description():
         'database': str(Path.home() / 'car_swarm/maps/rtabmap.db'),
         'params_file': share + '/config/rtabmap.yaml',
         'camera_params': share + '/config/camera.yaml',
+        # 建图默认看三维；导航入口会传入专用的二维配置。
+        'rviz_config': share + '/rviz/rgbd.rviz',
         'start_base': 'true', 'start_camera': 'true', 'start_rviz': 'true',
         'serial_port': '/dev/ttyCH341USB0', 'baud_rate': '115200', 'max_rpm': '100.0',
         'imu_port': '/dev/ttyTHS1', 'imu_baud': '115200', 'imu_rate': '20',

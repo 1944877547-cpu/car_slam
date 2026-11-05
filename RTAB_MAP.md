@@ -60,6 +60,7 @@ ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/r
 ```
 
 先用 `2D Pose Estimate`设置当前所在位置及朝向，确认激光与地图墙面对齐后再用 `Nav2 Goal`。
+导航默认打开二维俯视图，显示地图、机器人、激光及规划路径；建图入口继续显示三维点云。
 保留图像回环，并启用RTAB-Map原生全局激光地图邻近匹配。只有TF存在不代表已重定位成功。
 每次只启动一套完整入口；已有底盘节点时加`start_base:=false`，避免重复占用串口。
 

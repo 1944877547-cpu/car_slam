@@ -18,6 +18,8 @@ def generate_launch_description():
         'lidar_port': '/dev/ttyCH343USB0', 'start_lidar': 'true',
         'camera_params': share + '/config/camera.yaml',
         'params_file': share + '/config/rtabmap.yaml',
+        # 导航显示二维激光栅格与规划路径，建图入口继续使用RGB-D三维视图。
+        'rviz_config': share + '/rviz/navigation.rviz',
         'nav_params': get_package_share_directory('mycar_navigation2') + '/param/nav2_params.yaml',
     }
     # 只启导航节点：地图与map->odom由RTAB-Map提供，不启动AMCL/map_server。
