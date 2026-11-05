@@ -1,0 +1,17 @@
+# 本机配置
+.vscode/
+.agents/
+.aws/
+.codex/
+
+# 编译产物；本工程使用源码编译，不依赖CMSIS预编译归档
+build/
+*.o
+*.d
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+*.a
+*.lib
