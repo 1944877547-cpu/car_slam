@@ -1,3 +1,4 @@
+# 激光建图入口；这里启动的RGB仅用于显示，不参与Cartographer匹配或回环。
 import os
 
 from ament_index_python.packages import get_package_share_directory
@@ -41,6 +42,7 @@ def generate_launch_description():
         }.items(),
     )
 
+    # /scan、EKF的/odom与原始IMU进入Cartographer，地图修正不回写EKF。
     cartographer = Node(
         package='cartographer_ros',
         executable='cartographer_node',
@@ -55,6 +57,7 @@ def generate_launch_description():
         remappings=[('scan', '/scan'), ('odom', '/odom'), ('imu', '/imu/data')],
     )
 
+    # 将子图生成二维/map；建图与后续AMCL定位分阶段运行。
     occupancy_grid = Node(
         package='cartographer_ros',
         executable='cartographer_occupancy_grid_node',

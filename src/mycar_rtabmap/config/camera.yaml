@@ -1,8 +1,10 @@
+# 项目相机配置；相机SDK内部标定负责彩深对齐，URDF负责相机到车体的安装外参。
 /**:
   ros__parameters:
     camera_name: camera
     # SV1301S_U3 / Astra Stereo S U3，沿用官方 astra_stereo_u3 的采集规格。
     enable_color: true
+    # 这是请求的采集规格，实际可用组合需由设备profile和运行时日志确认。
     color_width: 640
     color_height: 480
     color_fps: 30
@@ -24,6 +26,7 @@
     enable_right_ir: false
     enable_accel: false
     enable_gyro: false
+    # 驱动直接输出图像和内参；三维点云由RTAB-Map从深度图投影生成。
     enable_point_cloud: false
     enable_colored_point_cloud: false
     enable_d2c_viewer: false

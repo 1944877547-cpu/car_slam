@@ -11,3 +11,5 @@
 - **里程计处理**：真实轮式编码器里程计，以及基于 EKF 的轮式里程计与 IMU 融合。
 - **建图与导航**：Cartographer 二维建图、AMCL 定位，以及 RTAB-Map 激光＋RGB-D 三维建图、图像回环与重定位，配合 Nav2 自主导航。
 - **配套文件**：机器人模型、RViz 配置、地图、测试程序和使用文档。
+
+使用说明：[RTAB_MAP.md](RTAB_MAP.md) · [cartographer.md](cartographer.md)。

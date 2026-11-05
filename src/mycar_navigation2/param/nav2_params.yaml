@@ -1,6 +1,10 @@
+# Nav2配置说明：线速度m/s、角速度rad/s、距离m；各节点只读取自己的参数段。
+# 当前采用NavFn(Dijkstra)+DWB，地图定位由所选启动入口决定。
+# 原激光导航入口启动AMCL；RTAB-Map导航入口只启动导航服务器，不启动AMCL。
 amcl:
   ros__parameters:
     use_sim_time: false
+    # 差速运动模型的里程计噪声系数；不是速度或控制增益。
     alpha1: 0.2
     alpha2: 0.2
     alpha3: 0.2
@@ -11,11 +15,13 @@ amcl:
     odom_frame_id: odom
     scan_topic: /scan
     robot_model_type: nav2_amcl::DifferentialMotionModel
+    # 似然场激光观测模型：按激光端点到地图障碍的距离给粒子评分。
     laser_model_type: likelihood_field
     laser_likelihood_max_dist: 2.0
     laser_min_range: -1.0
     laser_max_range: 12.0
     max_beams: 60
+    # 自适应粒子数范围；由观测和重采样结果调整，而非固定500个粒子。
     min_particles: 500
     max_particles: 2000
     pf_err: 0.05
@@ -34,12 +40,14 @@ amcl:
     sigma_hit: 0.2
     lambda_short: 0.1
 
+# 行为树负责组织规划、跟踪和恢复；插件库列表不等于所有行为都会被执行。
 bt_navigator:
   ros__parameters:
     use_sim_time: false
     global_frame: map
     robot_base_frame: base_link
     odom_topic: /odom
+    # 单位毫秒，是行为树tick周期；全局重规划周期由实际BT XML决定。
     bt_loop_duration: 10
     default_server_timeout: 20
     wait_for_service_timeout: 1000
@@ -100,6 +108,7 @@ bt_navigator_navigate_to_pose_rclcpp_node:
   ros__parameters:
     use_sim_time: false
 
+# 局部轨迹跟踪：DWB采样速度、预测轨迹、按critics评分，输出cmd_vel_nav。
 controller_server:
   ros__parameters:
     use_sim_time: false
@@ -114,8 +123,10 @@ controller_server:
     controller_plugins: [FollowPath]
     progress_checker:
       plugin: nav2_controller::SimpleProgressChecker
+      # 10秒内需产生至少0.20m位置变化；这不是停车阈值，也不是轮速判定。
       required_movement_radius: 0.20
       movement_time_allowance: 10.0
+    # 位置(m)和偏航(rad)到达容差；最终仍由goal checker判断任务结束。
     general_goal_checker:
       plugin: nav2_controller::SimpleGoalChecker
       stateful: true
@@ -126,11 +137,11 @@ controller_server:
       debug_trajectory_details: false
       min_vel_x: 0.0
       min_vel_y: 0.0
-      max_vel_x: 0.20
+      max_vel_x: 0.30
       max_vel_y: 0.0
       max_vel_theta: 1.20
       min_speed_xy: 0.0
-      max_speed_xy: 0.20
+      max_speed_xy: 0.30
       min_speed_theta: 0.0
       acc_lim_x: 0.50
       acc_lim_y: 0.0
@@ -138,17 +149,21 @@ controller_server:
       decel_lim_x: -0.50
       decel_lim_y: 0.0
       decel_lim_theta: -2.00
+      # 速度候选数；vy受差速运动学限制为0，vy_samples=5不代表能横向行驶。
       vx_samples: 20
       vy_samples: 5
       vtheta_samples: 21
+      # 对候选速度向前预测1.7秒，再检查障碍、路径偏差和目标偏差。
       sim_time: 1.7
       linear_granularity: 0.05
       angular_granularity: 0.025
       transform_tolerance: 0.5
       xy_goal_tolerance: 0.15
+      # DWB近目标旋转逻辑判断平移已停的阈值，不是自动添加的最小速度。
       trans_stopped_velocity: 0.05
       short_circuit_trajectory_evaluation: true
       stateful: true
+      # 无效轨迹会被拒绝，剩余轨迹累加评分；各critic分值量纲不同。
       critics: [RotateToGoal, Oscillation, BaseObstacle, GoalAlign, PathAlign, PathDist, GoalDist]
       BaseObstacle.scale: 0.02
       PathAlign.scale: 32.0
@@ -161,6 +176,7 @@ controller_server:
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
 
+# 局部代价地图跟随odom滚动，当前实时障碍观测只有/scan。
 local_costmap:
   local_costmap:
     ros__parameters:
@@ -194,9 +210,10 @@ local_costmap:
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 6.0
-        inflation_radius: 0.20
+        inflation_radius: 0.15
       always_send_full_costmap: false
 
+# 全局代价地图位于map：静态地图层 + 激光障碍层 + 膨胀层。
 global_costmap:
   global_costmap:
     ros__parameters:
@@ -231,9 +248,10 @@ global_costmap:
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 6.0
-        inflation_radius: 0.20
+        inflation_radius: 0.15
       always_send_full_costmap: false
 
+# 原AMCL导航使用PGM/YAML地图；RTAB-Map模式直接发布/map，不启动此节点。
 map_server:
   ros__parameters:
     use_sim_time: false
@@ -247,9 +265,11 @@ map_saver:
     occupied_thresh_default: 0.65
     map_subscribe_transient_local: true
 
+# 全局规划：NavFn；use_astar=false选择Dijkstra扩展，输出nav_msgs/Path。
 planner_server:
   ros__parameters:
     use_sim_time: false
+    # 期望执行速度/超时告警参考，不是强制以15Hz调用规划器。
     expected_planner_frequency: 15.0
     planner_plugins: [GridBased]
     GridBased:
@@ -258,6 +278,7 @@ planner_server:
       use_astar: false
       allow_unknown: true
 
+# 路径平滑服务已加载；默认Humble行为树没有SmoothPath，因此不自动经过本服务。
 smoother_server:
   ros__parameters:
     use_sim_time: false
@@ -268,6 +289,7 @@ smoother_server:
       max_its: 1000
       do_refinement: true
 
+# 恢复行为可独立发布/cmd_vel；插件注册不代表默认行为树会调用每一种行为。
 behavior_server:
   ros__parameters:
     use_sim_time: false
@@ -293,6 +315,7 @@ behavior_server:
     min_rotational_vel: 0.20
     rotational_acc_lim: 2.00
 
+# 多路点任务封装，单目标Nav2 Goal不需要经过这个节点。
 waypoint_follower:
   ros__parameters:
     use_sim_time: false
@@ -304,17 +327,20 @@ waypoint_follower:
       enabled: true
       waypoint_pause_duration: 200
 
+# 命令平滑：cmd_vel_nav -> cmd_vel，限制变化率；与上方路径平滑服务不同。
 velocity_smoother:
   ros__parameters:
     use_sim_time: false
     smoothing_frequency: 30.0
     scale_velocities: false
+    # 只表示用上次命令估算平滑器当前状态；STM32轮速PI仍是编码器闭环。
     feedback: OPEN_LOOP
-    max_velocity: [0.20, 0.0, 1.20]
+    max_velocity: [0.30, 0.0, 1.20]
     min_velocity: [-0.10, 0.0, -1.20]
     max_accel: [0.50, 0.0, 2.00]
     max_decel: [-0.50, 0.0, -2.00]
     odom_topic: /odom
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
+    # 1秒收不到新的导航输入则发送零速；更下层还有0.5秒命令超时。
     velocity_timeout: 1.0

@@ -11,6 +11,7 @@
 
 namespace mycar_base
 {
+// 两轮SystemInterface插件；不是独立ROS节点，由controller_manager加载。
 class MyCarSystem : public hardware_interface::SystemInterface
 {
 public:
@@ -38,9 +39,11 @@ private:
   double max_rpm_{100.0};
   double encoder_cpr_{1468.2};
   int feedback_timeout_ms_{500};
+  // 以下数组均固定为[左轮, 右轮]：position单位rad，velocity/command单位rad/s。
   std::array<double, 2> wheel_position_{{0.0, 0.0}};
   std::array<double, 2> wheel_velocity_{{0.0, 0.0}};
   std::array<double, 2> wheel_command_{{0.0, 0.0}};
+  // MCU相对毫秒用于计算采样间隔；超时检测使用主机单调时钟，避免系统时间跳变。
   std::array<uint32_t, 2> counts_{};
   uint32_t sample_ms_{0};
   bool feedback_received_{false};

@@ -1,5 +1,7 @@
+# ros2_control双轮差速配置：车体速度(m/s、rad/s)与轮角速度(rad/s)之间换算。
 controller_manager:
   ros__parameters:
+    # controller_manager按该频率调用硬件read、差速控制器update及硬件write。
     update_rate: 50
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -17,17 +19,23 @@ diff_drive_controller:
     left_wheel_radius_multiplier: 1.0
     right_wheel_radius_multiplier: 1.0
     open_loop: false  # 根据STM32回传的真实累计编码器位置计算/odom_raw。
+    # 从真实轮角位置增量计算里程计；不是用发送的目标速度积分。
     position_feedback: true
+    # /odom_raw仍发布，但odom->base_link只交给EKF，避免TF重复发布。
     enable_odom_tf: false
     publish_rate: 50.0
     odom_frame_id: odom
     base_frame_id: base_link
+    # 无时间戳Twist只使用linear.x和angular.z；0.5秒无新命令时归零。
     cmd_vel_timeout: 0.5
     use_stamped_vel: false
+    # 顺序[x,y,z,roll,pitch,yaw]；下方twist按[vx,vy,vz,wx,wy,wz]。
+    # 这些是估计噪声参数，不是实测精度；EKF目前只融合轮式twist。
     pose_covariance_diagonal: [1.0, 1.0, 1000000.0, 1000000.0, 1000000.0, 1.0]
     twist_covariance_diagonal: [0.04, 0.001, 1000000.0, 1000000.0, 1000000.0, 1.0]
+    # 这层启用速度限幅；Nav2导航的加减速约束主要在DWB和velocity_smoother中。
     linear.x.has_velocity_limits: true
-    linear.x.max_velocity: 0.20  # 底盘最终指令限速
+    linear.x.max_velocity: 0.30  # 底盘最终指令限速
     linear.x.min_velocity: -0.20
     angular.z.has_velocity_limits: true
     angular.z.max_velocity: 1.20

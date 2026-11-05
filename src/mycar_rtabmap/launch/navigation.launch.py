@@ -1,3 +1,4 @@
+# 先加载RTAB-Map数据库定位，再用同一套Nav2规划控制；地图话题统一为/map。
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
@@ -28,6 +29,7 @@ def generate_launch_description():
                 **{name: LaunchConfiguration(name) for name in defaults if name != 'nav_params'},
                 'localization': 'true',
             }.items(),
+        # navigation_launch只带导航服务器；bringup_launch还会带AMCL，不能在这里替换使用。
         ), IncludeLaunchDescription(
             PythonLaunchDescriptionSource(get_package_share_directory('nav2_bringup') + '/launch/navigation_launch.py'),
             launch_arguments={

@@ -1,3 +1,6 @@
+// 底盘硬件桥：上接ros2_control，下接STM32；轮速PI在MCU内执行。
+// 使用说明见项目根目录 RTAB_MAP.md 和 cartographer.md。
+
 #include "mycar_base/mycar_system.hpp"
 
 #include <algorithm>
@@ -19,6 +22,7 @@ namespace
 const auto logger = rclcpp::get_logger("mycar_hardware");
 constexpr double rpm_per_rad_s = 60.0 / (2.0 * M_PI);
 
+// STM32反馈的32位字段为大端；先按无符号数解码，差分时再恢复有符号方向。
 uint32_t u32(const uint8_t * p)
 {
   return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | p[3];
@@ -51,6 +55,7 @@ speed_t baud_value(int baud)
 
 namespace mycar_base
 {
+// 插件卸载时尽力发送零速，再关闭串口；下位机另有独立命令超时停车。
 MyCarSystem::~MyCarSystem()
 {
   if (serial_fd_ >= 0) {
@@ -103,6 +108,7 @@ hardware_interface::CallbackReturn MyCarSystem::on_init(const hardware_interface
   return CallbackReturn::SUCCESS;
 }
 
+// ros2_control状态接口：累计轮角度(rad)、由编码器计算的轮角速度(rad/s)。
 std::vector<hardware_interface::StateInterface> MyCarSystem::export_state_interfaces()
 {
   std::vector<hardware_interface::StateInterface> result;
@@ -113,6 +119,7 @@ std::vector<hardware_interface::StateInterface> MyCarSystem::export_state_interf
   return result;
 }
 
+// 控制器写入左右目标轮角速度(rad/s)，write()负责转为串口0.1 RPM。
 std::vector<hardware_interface::CommandInterface> MyCarSystem::export_command_interfaces()
 {
   std::vector<hardware_interface::CommandInterface> result;
@@ -122,6 +129,7 @@ std::vector<hardware_interface::CommandInterface> MyCarSystem::export_command_in
   return result;
 }
 
+// 生命周期配置阶段只初始化串口和测量基线；激活阶段还要等到真实反馈。
 hardware_interface::CallbackReturn MyCarSystem::on_configure(const rclcpp_lifecycle::State &)
 {
   wheel_position_.fill(0.0);
@@ -173,6 +181,7 @@ hardware_interface::CallbackReturn MyCarSystem::on_error(const rclcpp_lifecycle:
   return hardware_interface::CallbackReturn::ERROR;
 }
 
+// 50Hz控制周期中的read阶段：更新真实关节状态，并检查反馈是否持续有效。
 hardware_interface::return_type MyCarSystem::read(const rclcpp::Time &, const rclcpp::Duration &)
 {
   if (!receive_reply()) {
@@ -190,12 +199,14 @@ hardware_interface::return_type MyCarSystem::read(const rclcpp::Time &, const rc
   return hardware_interface::return_type::OK;
 }
 
+// 每周期的顺序由controller_manager组织：read -> 控制器update -> write。
 hardware_interface::return_type MyCarSystem::write(const rclcpp::Time &, const rclcpp::Duration &)
 {
   return send_wheel_command(wheel_command_[0], wheel_command_[1]) ?
     hardware_interface::return_type::OK : hardware_interface::return_type::ERROR;
 }
 
+// POSIX串口设为非阻塞raw模式、8N1、无硬件流控；这里直接收发二进制字节。
 bool MyCarSystem::open_serial()
 {
   serial_fd_ = ::open(serial_port_.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
@@ -236,18 +247,24 @@ bool MyCarSystem::send_wheel_command(double left, double right)
     return false;
   }
   const std::array<double, 2> command{{left, right}};
+  // 高速转弯达到单轮上限时，两轮同比缩放，保持指令的转弯曲率。
+  const double limit = max_rpm_ / rpm_per_rad_s;
+  const double peak = std::max(std::abs(left), std::abs(right));
+  const double scale = peak > limit ? limit / peak : 1.0;
   std::array<int16_t, 2> rpm{};
   for (std::size_t i = 0; i < 2; ++i) {
     // 单位0.1 RPM，保留低速指令；PWM和编码器PI全部由STM32处理。
-    const double value = std::clamp(command[i] * rpm_per_rad_s, -max_rpm_, max_rpm_);
+    const double value = std::clamp(command[i] * scale * rpm_per_rad_s, -max_rpm_, max_rpm_);
     rpm[i] = static_cast<int16_t>(std::lround(value * 10.0));
   }
+  // 转成uint16_t保留二补码位模式，负转速不会变成绝对值；本下发帧没有校验字段。
   const uint16_t l = static_cast<uint16_t>(rpm[0]);
   const uint16_t r = static_cast<uint16_t>(rpm[1]);
   // 与当前 STM32 car_swarm 一致：大端、有符号16位、固定8字节。
   const std::array<uint8_t, 8> packet{{0xAA, 0x55,
     static_cast<uint8_t>(l >> 8), static_cast<uint8_t>(l),
     static_cast<uint8_t>(r >> 8), static_cast<uint8_t>(r), 0x0D, 0x0A}};
+  // write()可能只写出部分数据；EAGAIN用poll短暂等待，EINTR重试。
   std::size_t done = 0;
   while (done < packet.size()) {
     const ssize_t count = ::write(serial_fd_, packet.data() + done, packet.size() - done);
@@ -287,12 +304,14 @@ bool MyCarSystem::receive_reply()
       return false;
     }
     for (ssize_t i = 0; i < count; ++i) {
+      // 串口是字节流：用17字节滑窗识别帧，支持拆包、粘包和错位恢复。
       std::move(rx_.begin() + 1, rx_.end(), rx_.begin());
       rx_.back() = chunk[i];
       rx_size_ = std::min(rx_size_ + 1, rx_.size());
       if (rx_size_ == rx_.size() && rx_[0] == 0xAA && rx_[1] == 0x66 &&
         rx_[15] == 0x0D && rx_[16] == 0x0A)
       {
+        // 上行校验为前14字节的8位累加和，不是CRC；校验失败不刷新保活时间。
         uint8_t sum = 0;
         for (std::size_t j = 0; j < 14; ++j) sum += rx_[j];
         if (sum != rx_[14]) continue;
@@ -306,12 +325,14 @@ bool MyCarSystem::receive_reply()
             return false;
           }
           for (std::size_t j = 0; j < 2; ++j) {
+            // 计数允许32位自然回绕；相邻采样间实际增量必须远小于2^31。
             const int32_t delta = static_cast<int32_t>(count[j] - counts_[j]);
             const double angle = delta * (2.0 * M_PI / encoder_cpr_);
             wheel_position_[j] += angle;
             wheel_velocity_[j] = angle * 1000.0 / dt;
           }
         }
+        // 首包仅建立计数基线，避免把MCU上电后的历史累计值当成ROS起点位移。
         counts_ = count;
         sample_ms_ = stamp;
         feedback_received_ = true;

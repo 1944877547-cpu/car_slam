@@ -1,3 +1,4 @@
+# Cartographer建图后使用的二维地图导航入口：map.yaml + AMCL + Nav2。
 import os
 
 from ament_index_python.packages import get_package_share_directory
@@ -43,6 +44,7 @@ def generate_launch_description():
         }.items(),
     )
 
+    # 原方案包含map_server+AMCL+导航服务器；与RTAB-Map的导航入口不同。
     nav2 = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(nav2_share, 'launch', 'bringup_launch.py')),

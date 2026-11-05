@@ -1,3 +1,4 @@
+# 公共底盘入口：两套SLAM共用，不在这里启动地图定位器或Nav2。
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, EmitEvent, IncludeLaunchDescription, RegisterEventHandler
@@ -25,6 +26,7 @@ def generate_launch_description():
     }
     args = {name: LaunchConfiguration(name) for name in defaults}
     sim = ParameterValue(args['use_sim_time'], value_type=bool)
+    # 同一份URDF同时提供传感器安装外参，以及ros2_control的关节和串口参数。
     description = ParameterValue(Command([
         'xacro ', share + '/urdf/mycar.urdf.xacro',
         ' serial_port:=', args['serial_port'],
@@ -32,6 +34,7 @@ def generate_launch_description():
         ' max_rpm:=', args['max_rpm'],
     ]), value_type=str)
 
+    # 加载硬件插件和两个控制器；统一/cmd_vel入口，原始轮式里程计改名/odom_raw。
     control = Node(
         package='controller_manager', executable='ros2_control_node', output='screen',
         parameters=[{'robot_description': description, 'use_sim_time': sim},
@@ -39,10 +42,12 @@ def generate_launch_description():
         remappings=[('/diff_drive_controller/cmd_vel_unstamped', '/cmd_vel'),
                     ('/diff_drive_controller/odom', '/odom_raw')],
     )
+    # 固定传感器TF来自URDF，转动车轮TF来自joint_state_broadcaster的/joint_states。
     state = Node(
         package='robot_state_publisher', executable='robot_state_publisher', output='screen',
         parameters=[{'robot_description': description, 'use_sim_time': sim}],
     )
+    # 独立IMU串口驱动；imu/data_raw在本工程映射为/imu/data。
     imu = Node(
         package='wit_ros2_imu', executable='wit_ros2_imu', name='imu_driver_node', output='screen',
         parameters=[{'port': args['imu_port'],
@@ -60,11 +65,13 @@ def generate_launch_description():
                           'use_sim_time': args['use_sim_time'],
                           'output': 'screen', 'log_level': 'warn'}.items(),
     )
+    # EKF只融合编码器里程计和IMU角速度，输出/odom并独占odom->base_link。
     ekf = Node(
         package='robot_localization', executable='ekf_node', name='ekf_filter_node', output='screen',
         parameters=[share + '/config/ekf.yaml', {'use_sim_time': sim}],
         remappings=[('odometry/filtered', '/odom')],
     )
+    # spawner通过controller_manager服务加载、配置和激活控制器。
     spawners = [Node(
         package='controller_manager', executable='spawner', output='screen',
         arguments=[name, '--controller-manager', '/controller_manager'],

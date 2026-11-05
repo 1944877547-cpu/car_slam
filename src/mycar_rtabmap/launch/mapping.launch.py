@@ -1,3 +1,4 @@
+# RTAB-Map统一建图/定位入口；此模式不启动Cartographer或AMCL。
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
@@ -14,11 +15,13 @@ def start(context):
     share = get_package_share_directory('mycar_rtabmap')
     sim = ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool)
     localization = LaunchConfiguration('localization').perform(context).lower() == 'true'
+    # .db保存图像、深度、激光和位姿图；定位模式必须使用已存在的数据库。
     database = Path(LaunchConfiguration('database').perform(context)).expanduser().resolve()
     if localization and not database.is_file():
         raise RuntimeError('Localization requires an existing RTAB-Map database: ' + str(database))
     database.parent.mkdir(parents=True, exist_ok=True)
 
+    # 复用底盘与EKF；start_base=false供离线测试或已有底盘节点时使用。
     base = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(get_package_share_directory('mycar_base') + '/launch/base.launch.py'),
         condition=IfCondition(LaunchConfiguration('start_base')),
@@ -31,6 +34,7 @@ def start(context):
         condition=IfCondition(LaunchConfiguration('start_camera')),
         launch_arguments={name: LaunchConfiguration(name) for name in ('use_sim_time', 'camera_params')}.items(),
     )
+    # 第一级近似同步：RGB、已对齐的深度、彩色内参，最大时间差20ms。
     sync = Node(
         package='rtabmap_sync', executable='rgbd_sync', name='rgbd_sync', namespace='rtabmap',
         output='screen', parameters=[{
@@ -41,10 +45,12 @@ def start(context):
                     ('depth/image', '/camera/depth/image_raw'),
                     ('rgb/camera_info', '/camera/color/camera_info')],
     )
+    # 第二级同步：RGBDImage与/scan；odom_frame_id让原生节点查询EKF历史TF。
     slam = Node(
         package='rtabmap_slam', executable='rtabmap', name='rtabmap', namespace='rtabmap',
         output='screen', parameters=[LaunchConfiguration('params_file'), {
             'use_sim_time': sim, 'database_path': str(database),
+            # true为建图；false为数据库定位，不向地图增加新的建图节点。
             'Mem/IncrementalMemory': 'false' if localization else 'true',
             'Mem/InitWMWithAllNodes': 'true' if localization else 'false',
         }],

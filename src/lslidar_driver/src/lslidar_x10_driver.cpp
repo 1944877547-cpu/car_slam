@@ -324,6 +324,7 @@ namespace lslidar_driver {
     }
 
 
+    // 项目保留原N10发布时序：LaserScan使用整圈末端参考时刻，尚无逐点去畸变。
     void LslidarX10Driver::publishLiadrData() {
         std::unique_lock<std::mutex> lock(pointcloud_lock);
 
@@ -378,6 +379,8 @@ namespace lslidar_driver {
         }
     }
 
+    // 将本圈二维激光点按角度落入LaserScan格子；这是雷达点云，不是RGB-D点云。
+    // time_increment=0，scan_time未填写；不能据此声称每束激光采样都已硬件同步。
     void LslidarX10Driver::pointcloudToLaserscan(const sensor_msgs::msg::PointCloud2 &cloud_msg,
                                              sensor_msgs::msg::LaserScan &output_scan) {
         output_scan.header = cloud_msg.header;

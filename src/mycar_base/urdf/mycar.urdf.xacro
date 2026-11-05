@@ -4,6 +4,7 @@
   <xacro:arg name="baud_rate" default="115200"/>
   <xacro:arg name="max_rpm" default="100.0"/>
 
+  <!-- 几何量单位m；必须与controllers.yaml中的轮半径、轮距一致。 -->
   <xacro:property name="wheel_radius" value="0.0325"/>
   <xacro:property name="wheel_width" value="0.025"/>
   <xacro:property name="wheel_separation" value="0.125"/>
@@ -61,10 +62,11 @@
       <material name="body_gray"/>
     </visual>
   </link>
+  <!-- xyz/rpy描述父坐标系到传感器坐标系的固定安装关系，不是传感器滤波参数。 -->
   <joint name="laser_joint" type="fixed">
     <parent link="base_link"/>
     <child link="laser"/>
-    <origin xyz="0 0 0.2"/>
+    <origin xyz="0 0 0.12"/>
   </joint>
 
   <!-- IMU的安装位置和姿态需按实车修改，坐标轴：x右、y后、z下。 -->
@@ -87,9 +89,10 @@
   <joint name="camera_joint" type="fixed">
     <parent link="base_link"/>
     <child link="camera_link"/>
-    <origin xyz="0.05 0 0.02" rpy="0 0 0"/>
+    <origin xyz="0.10 0 0.02" rpy="0 0 0"/>
   </joint>
 
+  <!-- 插件名由mycar_hardware.xml注册；接口position(rad)、velocity(rad/s)。 -->
   <ros2_control name="MyCarSystem" type="system">
     <hardware>
       <plugin>mycar_base/MyCarSystem</plugin>

@@ -1,3 +1,4 @@
+# 本文件是setup.py注册的实际驱动入口；同包根目录的同名旧文件不是此入口。
 import math
 import struct
 import threading
@@ -11,6 +12,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Imu
 
 
+# WIT二进制协议每帧11字节，末字节为前10字节和；载荷是小端有符号int16。
 FRAME_HEADER = 0x55
 FRAME_LENGTH = 11
 ACCEL_FRAME = 0x51
@@ -73,6 +75,7 @@ class WitParser:
         self.angle_degree = [0.0, 0.0, 0.0]
         self.magnetometer = [0.0, 0.0, 0.0]
 
+    # 按帧头、类型、长度和校验定位有效帧，噪声只丢一个字节后继续找帧。
     def push_byte(self, value):
         self.buffer.append(value)
 
@@ -102,6 +105,7 @@ class WitParser:
 
         return None
 
+    # 将厂商量程换算为ROS SI单位：加速度m/s²、角速度rad/s；角度调试话题保留度。
     def _parse_frame(self, frame):
         values = unpack_shorts(frame[2:10])
         frame_type = frame[1]
@@ -158,6 +162,7 @@ class IMUDriverNode(Node):
         self.imu_pub = self.create_publisher(Imu, "imu/data_raw", 10)
         self.angle_pub = self.create_publisher(Vector3Stamped, "imu/angle", 10)
 
+        # 串口读取放在后台线程；ROS主线程负责spin和退出管理。
         self.driver_thread = threading.Thread(target=self.driver_loop, daemon=True)
         self.driver_thread.start()
 
@@ -218,6 +223,7 @@ class IMUDriverNode(Node):
         time.sleep(0.05)
         wit_serial.reset_input_buffer()
 
+    # 无硬件绝对采样时钟：使用本次读到串口数据的ROS时间，不按假定频率倒推时间戳。
     def read_serial_loop(self, wit_serial):
         stats = SerialStats()
         last_data_time = time.monotonic()

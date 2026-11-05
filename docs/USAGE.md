@@ -70,7 +70,7 @@ IMU姿态尚未核实，当前EKF不融合姿态或加速度，不做加速度�
 - 每圈四倍频计数 **1468.2**：Xacro的 `encoder_cpr` 与STM32的 `ENC_CPR` 保持一致。
 - 左编码器A/B：PB8/PB9；右编码器A/B：PB6/PB7。手转前进时两轮累计计数都应增加。
 - STM32轮速PI保持 `KP=7`、`KI=18`，控制周期10ms，PWM上限1200、周期3599。实车整定，不添加固定起步补偿。
-- 导航上限0.20m/s、1.20rad/s，加速度0.50m/s²、2.00rad/s²；本次不改变导航参数。
+- 导航上限0.30m/s、1.20rad/s，加速度0.50m/s²、2.00rad/s²。达到单轮100RPM上限时，两轮目标同比缩放以保持曲率，弯道实际车体速度可能低于指令上限。
 - IMU安装x右、y后、z下；`imu_joint` RPY为 `3.1415926536 0 -1.5707963268`。角速度经TF转换到车体坐标后融合。
 - IMU与车体基准同高，位置在 `imu_tracking_joint`；雷达位置在 `laser_joint`，当前相对车体高0.20m。
 - IMU默认请求20Hz，以 `ros2 topic hz /imu/data` 实测为准。
@@ -202,7 +202,7 @@ ros2 topic echo /camera/depth/image_raw --once --field header
 ros2 launch mycar_rtabmap mapping.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
 ```
 
-新终端加载环境后使用原键盘遥控指令。建图节点默认1Hz更新关键帧，输入相机仍为30FPS，雷达约10Hz。
+新终端加载环境后使用原键盘遥控指令。RTAB-Map处理上限为3Hz；关键帧是否保存由运动及匹配结果决定，相机请求30FPS，雷达约10Hz。
 RViz中 `/rtabmap/cloud_map` 是三维地图，`/map` 是供Nav2使用的二维投影。
 地图数据库同时保存关键帧图像、深度、激光及位姿图；停车并Ctrl+C正常退出后保存到指定 `.db`。
 默认不会删除旧数据库；创建另一张地图时换一个新数据库文件名。

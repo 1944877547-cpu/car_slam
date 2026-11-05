@@ -1,22 +1,28 @@
+# 局部融合层：/odom_raw + /imu/data -> /odom、odom->base_link。
+# 激光和相机没有直接进入这个EKF，而是在地图定位层使用。
 ekf_filter_node:
   ros__parameters:
     frequency: 50.0
+    # 测量超时后进入预测更新，并非0.2秒停车开关。
     sensor_timeout: 0.2
     # 将融合状态预测到当前时刻；/odom和odom->base_link使用同一时间。
     predict_to_current_time: true
     transform_time_offset: 0.0
     permit_corrected_publication: false
+    # 保持平面运动约束；此节点仍使用robot_localization的标准15维状态模型。
     two_d_mode: true
     publish_tf: true
     print_diagnostics: true
     map_frame: map
     odom_frame: odom
     base_link_frame: base_link
+    # 输出连续局部里程计，地图回环产生的全局修正由SLAM/AMCL负责。
     world_frame: odom
     # 轮式里程计提供前向速度、侧向零速度约束和转向角速度。
     # 轮位置和速度同源，只融合速度，避免重复融合。
     # 顺序：x y z / roll pitch yaw / vx vy vz / vroll vpitch vyaw / ax ay az。
     odom0: /odom_raw
+    # 选中vx、vy=0约束、wz；vy=0表示差速车正常滚动时不能横向平移。
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true,  false,
@@ -26,6 +32,7 @@ ekf_filter_node:
     odom0_differential: false
     # 姿态角与静止重力方向尚不一致，先仅融合角速度，不融合欧拉角。
     imu0: /imu/data
+    # 只使用IMU的wz；先根据imu_link->base_link外参旋转，再参与融合。
     imu0_config: [false, false, false,
                   false, false, false,
                   false, false, false,
@@ -34,4 +41,5 @@ ekf_filter_node:
     imu0_queue_size: 20
     imu0_differential: false
     imu0_relative: false
+    # 加速度未选入融合，此选项当前不负责通过二次积分计算位置。
     imu0_remove_gravitational_acceleration: false
