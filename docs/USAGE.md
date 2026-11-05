@@ -202,7 +202,7 @@ ros2 topic echo /camera/depth/image_raw --once --field header
 ros2 launch mycar_rtabmap mapping.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
 ```
 
-新终端加载环境后使用原键盘遥控指令。RTAB-Map处理上限为3Hz；关键帧是否保存由运动及匹配结果决定，相机请求30FPS，雷达约10Hz。
+新终端加载环境后使用原键盘遥控指令。RTAB-Map处理上限为1Hz；关键帧是否保存由运动及匹配结果决定，相机请求30FPS，雷达约10Hz。
 RViz中 `/rtabmap/cloud_map` 是三维地图，`/map` 是供Nav2使用的二维投影。
 地图数据库同时保存关键帧图像、深度、激光及位姿图；停车并Ctrl+C正常退出后保存到指定 `.db`。
 默认不会删除旧数据库；创建另一张地图时换一个新数据库文件名。

@@ -66,7 +66,7 @@ ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/r
 
 | 参数 | 位置 |
 | --- | --- |
-| 处理上限3Hz、配准和地图 | `src/mycar_rtabmap/config/rtabmap.yaml` |
+| 处理上限1Hz、配准和地图 | `src/mycar_rtabmap/config/rtabmap.yaml` |
 | 彩深对齐、采集规格 | `src/mycar_rtabmap/config/camera.yaml` |
 | 相机前5cm、上2cm，按水平朝前配置 | URDF的 `camera_joint` |
 | 导航前进上限0.30m/s | `src/mycar_navigation2/param/nav2_params.yaml` |
@@ -80,5 +80,5 @@ ros2 topic hz /camera/depth/image_raw
 ros2 run tf2_ros tf2_echo map base_link
 ```
 
-3Hz为处理上限，不保证每秒保存3个关键帧。观察启动日志中的处理耗时、同步丢帧/等待告警和TF等待；每组处理预算约0.33秒，实际效果需在NX验证。
+1Hz为处理上限，不保证每秒保存1个关键帧。观察启动日志中的处理耗时、同步丢帧/等待告警和TF等待；每组处理预算约1秒，实际效果需在NX验证。
 相机请求彩色640×480、深度640×400、30FPS；实际支持规格以设备为准。提高处理频率不能替代轮径、轮距和传感器外参标定。

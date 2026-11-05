@@ -27,8 +27,8 @@
     # 地面车只优化x/y/yaw；这不会把深度点的高度清零。
     Reg/Force3DoF: "true"
     Rtabmap/ImagesAlreadyRectified: "false"
-    # SLAM处理上限3Hz；实际频率取决于同步输入和计算耗时，关键帧按运动情况保存。
-    Rtabmap/DetectionRate: "3.0"
+    # SLAM处理上限1Hz；实际频率取决于同步输入和计算耗时，关键帧按运动情况保存。
+    Rtabmap/DetectionRate: "1.0"
     # 三维局部栅格同时使用深度与激光；仍可投影为Nav2所用二维/map。
     Grid/Sensor: "2"
     Grid/3D: "true"
