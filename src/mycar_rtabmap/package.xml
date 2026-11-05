@@ -2,7 +2,7 @@
 <package format="3">
   <name>mycar_rtabmap</name>
   <version>0.1.0</version>
-  <description>RGB-D and N10 lidar mapping and visual relocalization with external wheel/IMU odometry.</description>
+  <description>2D lidar mapping and localization with ICP odometry and IMU fusion.</description>
   <maintainer email="yiheng@example.com">yiheng</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
@@ -13,8 +13,8 @@
   <exec_depend>mycar_navigation2</exec_depend>
   <exec_depend>orbbec_camera</exec_depend>
   <exec_depend>rtabmap_slam</exec_depend>
-  <exec_depend>rtabmap_sync</exec_depend>
-  <exec_depend>rtabmap_util</exec_depend>
+  <exec_depend>rtabmap_odom</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
   <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>nav2_rviz_plugins</exec_depend>
   <exec_depend>rviz2</exec_depend>

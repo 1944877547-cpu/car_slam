@@ -1,0 +1,37 @@
+# /odom_icp + /imu/data -> /odom；不订阅或融合/odom_raw轮式里程计。
+/**:
+  ros__parameters:
+    frequency: 50.0
+    sensor_timeout: 0.2
+    predict_to_current_time: true
+    transform_time_offset: 0.0
+    permit_corrected_publication: false
+    two_d_mode: true
+    publish_tf: true
+    print_diagnostics: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+    # 只融合ICP的平面速度，不重复融合它的同源位置。
+    # 顺序：x y z / roll pitch yaw / vx vy vz / vroll vpitch vyaw / ax ay az。
+    odom0: /odom_icp
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, true,
+                   false, false, false]
+    odom0_queue_size: 10
+    odom0_differential: false
+    imu0: /imu/data
+    # 使用真实角速度，安装方向由imu_link->base_link静态TF转换。
+    # WIT姿态协方差首项为-1，当前不使用姿态及加速度。
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_queue_size: 20
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: false

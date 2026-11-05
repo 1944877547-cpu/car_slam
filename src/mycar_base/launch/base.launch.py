@@ -22,6 +22,8 @@ def generate_launch_description():
         'max_rpm': '100.0',
         'lidar_port': '/dev/ttyCH343USB0',
         'start_lidar': 'true',
+        # RTAB-Map使用独立的激光+IMU EKF时关闭，避免重复发布odom和TF。
+        'start_ekf': 'true',
         'use_sim_time': 'false',
     }
     args = {name: LaunchConfiguration(name) for name in defaults}
@@ -68,6 +70,7 @@ def generate_launch_description():
     # EKF只融合编码器里程计和IMU角速度，输出/odom并独占odom->base_link。
     ekf = Node(
         package='robot_localization', executable='ekf_node', name='ekf_filter_node', output='screen',
+        condition=IfCondition(args['start_ekf']),
         parameters=[share + '/config/ekf.yaml', {'use_sim_time': sim}],
         remappings=[('odometry/filtered', '/odom')],
     )

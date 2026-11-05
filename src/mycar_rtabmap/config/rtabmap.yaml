@@ -1,44 +1,38 @@
-# 地图融合层：RGB-D+2D激光+EKF的TF，独占map->odom。
+# 雷达+IMU方案：读取激光及融合里程计，使用ICP几何匹配与二维激光栅格。
 /**:
   ros__parameters:
     frame_id: base_link
     map_frame_id: map
-    # 在传感器时间查询现有EKF的TF，不启动第二套里程计。
-    odom_frame_id: odom
+    # 使用/odom消息及其协方差，来源为激光ICP+IMU EKF。
+    odom_frame_id: ""
+    subscribe_odom: true
     publish_tf: true
     subscribe_depth: false
     subscribe_rgb: false
-    # 接收rgbd_sync打包的彩色、深度和内参；false仅关闭单独图像接口。
-    subscribe_rgbd: true
+    subscribe_rgbd: false
+    subscribe_stereo: false
     subscribe_scan: true
     subscribe_odom_info: false
     approx_sync: true
-    # RGB-D与扫描的时间戳最大匹配窗口(s)，不会修改消息采集时间。
     approx_sync_max_interval: 0.06
     topic_queue_size: 10
     sync_queue_size: 20
-    # RTAB-Map中2表示Best Effort，可接收可靠或尽力而为传感器发布者。
-    qos_image: 2
     qos_scan: 2
+    qos_odom: 1
     wait_for_transform: 0.5
-    # RTAB-Map核心参数必须使用字符串。
-    # 图像检索回环候选，RGB-D几何验证后再由激光ICP精配准。
-    Reg/Strategy: "2"
-    # 地面车只优化x/y/yaw；这不会把深度点的高度清零。
+    # 核心参数保持字符串类型；1=ICP，平面车只估计x/y/yaw。
+    Reg/Strategy: "1"
     Reg/Force3DoF: "true"
-    # 保留视觉回环；相邻节点使用原生配准细化，不修改底盘/EKF里程计。
     RGBD/NeighborLinkRefining: "true"
     RGBD/ProximityBySpace: "true"
     RGBD/ProximityPathMaxNeighbors: "10"
-    # 定位模式使用原生全局激光子地图匹配，减少对当前画面有效深度的依赖。
-    # 此选项在建图模式不启用全局激光地图，仍使用原生局部邻近匹配。
     RGBD/ProximityGlobalScanMap: "true"
-    Rtabmap/ImagesAlreadyRectified: "false"
-    # SLAM处理上限1Hz；实际频率取决于同步输入和计算耗时，关键帧按运动情况保存。
-    Rtabmap/DetectionRate: "1.0"
-    # 三维地图同时使用深度与激光；其二维投影另存为/rtabmap/projected_map。
-    # Nav2的/map由navigation_map.yaml按激光生成，使用同一份优化位姿图。
-    Grid/Sensor: "2"
-    Grid/3D: "true"
-    Grid/CellSize: "0.05"
     RGBD/OptimizeFromGraphEnd: "false"
+    # 二维模式不使用IMU姿态重力约束，IMU角速度已经在EKF内融合。
+    Optimizer/GravitySigma: "0"
+    Rtabmap/DetectionRate: "1.0"
+    Grid/Sensor: "0"
+    Grid/3D: "false"
+    Grid/CellSize: "0.05"
+    Grid/RangeMin: "0.2"
+    Grid/RangeMax: "8.0"

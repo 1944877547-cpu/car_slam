@@ -1,91 +1,75 @@
-# RTAB-Map 三维建图与定位
+# RTAB-Map：雷达＋IMU建图与导航
 
-适用于NX的 `~/car_swarm`。融合激光与RGB-D，复用编码器＋IMU里程计。
-与Cartographer分别运行，切换前先退出当前建图/导航。原方案见 [cartographer.md](cartographer.md)。
-三维地图保留RGB-D＋激光融合；Nav2的二维栅格按激光生成，共用RTAB-Map优化后的位姿图。
+适用于NX的`~/car_swarm`，使用N10激光与维特IMU。当前入口不启动相机、不融合轮式里程计。
+流程：`/scan → ICP → /odom_icp`，再与`/imu/data`角速度经EKF生成`/odom`，供RTAB-Map和Nav2使用。
+编码器继续用于STM32电机转速闭环及关节显示。原Cartographer入口保留原来的轮式＋IMU方案。
 
-## 1. 安装、编译和加载环境
+## 1. 编译与环境
 
 首次安装依赖：
 
 ```bash
-sudo apt update
-sudo apt install -y ros-humble-rtabmap-ros
+sudo apt install -y ros-humble-rtabmap-ros ros-humble-robot-localization
 ```
 
-源码更新后，退出运行中的程序再编译：
+源码更新后退出旧建图、导航和底盘程序，再编译：
 
 ```bash
 cd ~/car_swarm
 source /opt/ros/humble/setup.bash
-CMAKE_BUILD_PARALLEL_LEVEL=2 MAKEFLAGS=-j2 colcon build --executor sequential --cmake-args -DBUILD_TESTING=OFF
+CMAKE_BUILD_PARALLEL_LEVEL=2 MAKEFLAGS=-j2 colcon build --executor sequential --packages-select mycar_base mycar_rtabmap --cmake-args -DBUILD_TESTING=OFF
 ```
 
-每个新终端加载环境：
+每个新终端加载：
 
 ```bash
 source /opt/ros/humble/setup.bash
 source ~/car_swarm/install/local_setup.bash
 ```
 
-## 2. 建图与键盘控制
+## 2. 先建立二维激光地图
 
-终端A：
+新方案使用独立数据库`rtabmap_lidar.db`，原RGB-D数据库`rtabmap.db`保留；请用新方案重新建图。
 
 ```bash
-ros2 launch mycar_rtabmap mapping.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
+ros2 launch mycar_rtabmap mapping.launch.py database:="$HOME/car_swarm/maps/rtabmap_lidar.db"
 ```
 
-终端B加载环境后运行，英文输入法，`i`前进、`,`后退、`j/l`转向、`k`停车：
+新终端加载环境后遥控，`i`前进、`,`后退、`j/l`转向、`k`停车：
 
 ```bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p speed:=0.05 -p turn:=0.3 -r cmd_vel:=/cmd_vel
 ```
 
-RViz：`/rtabmap/cloud_map`为三维地图，`/map`为激光导航栅格，深度投影在`/rtabmap/projected_map`。停车后退出遥控，再在终端A按 `Ctrl+C`，等待 `.db`保存完成。
-重定位需要保留数据库；新地图使用新文件名，已有数据库默认继续建图。
+RViz显示二维地图、激光和机器人。停车并退出遥控，再在建图终端按`Ctrl+C`，等待数据库保存完成。
 
-## 3. 重定位与导航（二选一）
+## 3. 定位与导航
 
-仅重定位：
-
-```bash
-ros2 launch mycar_rtabmap mapping.launch.py localization:=true database:="$HOME/car_swarm/maps/rtabmap.db"
-```
-
-重定位＋Nav2：
+先关闭建图，再使用保存的新数据库：
 
 ```bash
-ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/rtabmap.db"
+ros2 launch mycar_rtabmap navigation.launch.py database:="$HOME/car_swarm/maps/rtabmap_lidar.db"
 ```
 
-先用 `2D Pose Estimate`设置当前所在位置及朝向，确认激光与地图墙面对齐后再用 `Nav2 Goal`。
-导航默认打开二维俯视图，显示地图、机器人、激光及规划路径；建图入口继续显示三维点云。
-保留图像回环，并启用RTAB-Map原生全局激光地图邻近匹配。只有TF存在不代表已重定位成功。
-每次只启动一套完整入口；已有底盘节点时加`start_base:=false`，避免重复占用串口。
+用`2D Pose Estimate`给出当前的位置和朝向，确认激光与墙面对齐后，再用`Nav2 Goal`下发目标。
+当前使用ICP几何匹配和激光邻近回环，不再使用图像回环或深度三维建图。
+每次只启动一套完整入口，避免重复占用串口。若单独启动底盘，必须加`start_ekf:=false`，再给RTAB-Map加`start_base:=false`。
 
-## 4. 参数与检查
+## 4. 参数与TF
 
-默认串口：底盘 `/dev/ttyCH341USB0`，雷达 `/dev/ttyCH343USB0`，IMU `/dev/ttyTHS1`；可用 `serial_port`、`lidar_port`、`imu_port`启动参数覆盖。
+默认串口：底盘`/dev/ttyCH341USB0`，雷达`/dev/ttyCH343USB0`，IMU`/dev/ttyTHS1`。
 
-| 参数 | 位置 |
+| 内容 | 文件 |
 | --- | --- |
-| 处理上限1Hz、配准和地图 | `src/mycar_rtabmap/config/rtabmap.yaml` |
-| 激光导航栅格、旧栅格缓存重建 | `src/mycar_rtabmap/config/navigation_map.yaml` |
-| 彩深对齐、采集规格 | `src/mycar_rtabmap/config/camera.yaml` |
-| 相机安装外参，按实车测量值填写 | URDF的 `camera_joint` |
-| 导航上限0.25m/s，局部/全局膨胀半径0.20m | `src/mycar_navigation2/param/nav2_params.yaml` |
+| 激光ICP，无轮式运动初值 | `src/mycar_rtabmap/config/icp_odometry.yaml` |
+| 激光速度＋IMU角速度融合 | `src/mycar_rtabmap/config/laser_imu_ekf.yaml` |
+| ICP回环、1Hz建图、二维激光栅格 | `src/mycar_rtabmap/config/rtabmap.yaml` |
+| 0.25m/s前进上限、0.20m局部/全局膨胀半径 | `src/mycar_navigation2/param/nav2_params.yaml` |
+| 传感器安装位置与朝向 | `src/mycar_base/urdf/mycar.urdf.xacro` |
 
-检查命令逐条运行，频率检查用 `Ctrl+C`结束：
+`odom → base_link`只由`rtabmap_ekf`发布，`map → odom`只由RTAB-Map发布，传感器固定TF来自URDF。
+WIT姿态当前标记为不可用，只融合角速度Z；不积分加速度推算平移，不改写雷达或IMU时间戳。
+二维激光不能恢复深度相机的完整三维结构；长直走廊或几何特征不足时，激光里程计仍可能退化。
 
-```bash
-ros2 param get /rtabmap/rtabmap Rtabmap/DetectionRate
-ros2 topic hz /rtabmap/info
-ros2 topic hz /camera/depth/image_raw
-ros2 run tf2_ros tf2_echo map base_link
-```
-
-1Hz为处理上限，不保证每秒保存1个关键帧。观察启动日志中的处理耗时、同步丢帧/等待告警和TF等待；每组处理预算约1秒，实际效果需在NX验证。
-相机请求彩色640×480、深度640×400、30FPS；实际支持规格以设备为准。提高处理频率不能替代轮径、轮距和传感器外参标定。
-
-参考：[教程的RTABMap章节](https://gitee.com/gwmunan/ros2/wikis/pages?sort_id=11078218&doc_id=4855084)。教程使用RealSense双目，本工程保留Orbbec RGB-D和轮式＋IMU EKF。
+参考：[教程RTABMap章节](https://gitee.com/gwmunan/ros2/wikis/pages?sort_id=11078218&doc_id=4855084)、[RTAB-Map激光示例](https://github.com/introlab/rtabmap_ros/blob/ros2/rtabmap_demos/launch/turtlebot3/turtlebot3_scan.launch.py)。
+教程中的双目前端改为原生激光ICP，IMU通过`robot_localization`的EKF融合角速度。

@@ -11,14 +11,13 @@ from launch.substitutions import LaunchConfiguration
 def generate_launch_description():
     share = get_package_share_directory('mycar_rtabmap')
     defaults = {
-        'database': str(Path.home() / 'car_swarm/maps/rtabmap.db'),
-        'use_sim_time': 'false', 'start_base': 'true', 'start_camera': 'true', 'start_rviz': 'true',
+        'database': str(Path.home() / 'car_swarm/maps/rtabmap_lidar.db'),
+        'use_sim_time': 'false', 'start_base': 'true', 'start_rviz': 'true',
         'serial_port': '/dev/ttyCH341USB0', 'baud_rate': '115200', 'max_rpm': '100.0',
         'imu_port': '/dev/ttyTHS1', 'imu_baud': '115200', 'imu_rate': '20',
         'lidar_port': '/dev/ttyCH343USB0', 'start_lidar': 'true',
-        'camera_params': share + '/config/camera.yaml',
         'params_file': share + '/config/rtabmap.yaml',
-        # 导航显示二维激光栅格与规划路径，建图入口继续使用RGB-D三维视图。
+        # 建图与导航统一使用二维激光栅格视图。
         'rviz_config': share + '/rviz/navigation.rviz',
         'nav_params': get_package_share_directory('mycar_navigation2') + '/param/nav2_params.yaml',
     }
