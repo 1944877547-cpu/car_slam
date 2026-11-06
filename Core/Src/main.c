@@ -35,7 +35,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define PWM_MAX 1200            /* PWM上限；TIM3周期仍为3599。 */
+#define PWM_MAX 1800            /* PWM上限提高至50%，TIM3周期仍为3599。 */
 #define RPM_MAX 120             /* 最大目标转速，单位RPM。 */
 #define L_REV 1
 #define R_REV 1
@@ -44,7 +44,9 @@
 #ifndef ENC_CPR
 #define ENC_CPR 1468.2f         /* 每圈A/B四倍频计数，已与手转复测核对。 */
 #endif
-#define KP 10.0f                /* P由7略增至10，提高相同误差下的驱动力。 */
+#define KP 20.0f                /* P由10提高到20，增强前进和差速转向响应。 */
+#define KP_TURN 120.0f           /* 两轮目标反向时提高P，增强原地转向起动能力。 */
+#define TURN_FILTER 0.5f        /* 原地转向测速低通，减小单脉冲量化引起的抖动。 */
 #define KD 0.02f
 
 #if PWM_MAX < 1 || PWM_MAX > 3599 || RPM_MAX < 1 || RPM_MAX > 3276
@@ -71,6 +73,7 @@ static volatile float measured[2];    /* 实测RPM，可在调试器查看。 */
 static volatile int16_t pwm[2];
 static uint8_t state[2];
 static float old_rpm[2];             /* 上一次实测转速，仅用于D项。 */
+static float turn_rpm[2];            /* 编码器实测转速的低通值，仅供原地转向使用。 */
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -136,19 +139,25 @@ static void Control(void)
   target[0] = left; target[1] = right;
   __set_PRIMASK(key);
 
+  /* 只识别两轮反向的原地转向；同向行驶继续使用普通P。 */
+  uint8_t turn = (int32_t)target[0] * target[1] < 0;
+  float kp = turn ? KP_TURN : KP;
+
   for (uint8_t i = 0; i < 2; i++)
   {
     int32_t delta = (int32_t)((uint32_t)count[i] - (uint32_t)previous[i]);
     previous[i] = count[i];
     if (ENC_CPR <= 0.0f)          /* 未标定时可手转计数，电机保持关闭。 */
     {
-      measured[i] = old_rpm[i] = 0;
+      measured[i] = old_rpm[i] = turn_rpm[i] = 0;
       pwm[i] = 0;
       continue;
     }
     measured[i] = delta * 6000.0f / ENC_CPR;
     float change = (measured[i] - old_rpm[i]) * 100.0f;
     old_rpm[i] = measured[i];
+    float step = TURN_FILTER * (measured[i] - turn_rpm[i]);
+    turn_rpm[i] += step;
     if (target[i] == 0)
     {
       pwm[i] = 0;
@@ -156,7 +165,8 @@ static void Control(void)
     }
     float rpm = target[i] * 0.1f;
     /* D项对实测速度求导，避免目标变化时产生微分冲击；没有积分项。 */
-    float output = KP * (rpm - measured[i]) - KD * change;
+    float speed = turn ? turn_rpm[i] : measured[i];
+    float output = kp * (rpm - speed) - KD * (turn ? step * 100.0f : change);
     if (output > PWM_MAX) output = PWM_MAX;
     if (output < -PWM_MAX) output = -PWM_MAX;
     pwm[i] = (int16_t)output;
