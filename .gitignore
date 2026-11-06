@@ -11,3 +11,7 @@
 # RTAB-Map运行时地图数据库
 /maps/*.db
 /maps/*.db-*
+
+# ORB-SLAM3本机编译依赖、词典及运行地图
+/.orbslam3/
+/maps/orb_slam3/

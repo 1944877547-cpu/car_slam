@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>mycar_orbslam3</name>
+  <version>0.1.0</version>
+  <description>Independent ORB-SLAM3 RGB-D test for the Orbbec camera.</description>
+  <maintainer email="1944877547@qq.com">1944877547-cpu</maintainer>
+  <license>GPL-3.0-or-later</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>message_filters</depend>
+  <depend>cv_bridge</depend>
+  <depend>tf2_ros</depend>
+  <depend>eigen</depend>
+  <depend>libopencv-dev</depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>mycar_base</exec_depend>
+  <exec_depend>orbbec_camera</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

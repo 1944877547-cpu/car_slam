@@ -19,7 +19,7 @@ def generate_launch_description():
         'imu_port': '/dev/ttyTHS1',
         'imu_baud': '115200',
         'imu_rate': '20',
-        'max_rpm': '100.0',
+        'max_rpm': '120.0',
         'lidar_port': '/dev/ttyCH343USB0',
         'start_lidar': 'true',
         # RTAB-Map使用独立的激光+IMU EKF时关闭，避免重复发布odom和TF。

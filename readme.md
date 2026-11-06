@@ -12,4 +12,6 @@
 - **建图与导航**：Cartographer或RTAB-Map二维建图，配合Nav2自主导航。当前RTAB-Map入口不启动相机。
 - **配套文件**：机器人模型、RViz 配置、地图、测试程序和使用文档。
 
-使用说明：[RTAB_MAP.md](RTAB_MAP.md) · [cartographer.md](cartographer.md)。
+另提供 **ORB-SLAM3 RGB-D 独立测试**，用于Orbbec相机视觉建图、轨迹和重定位。
+
+使用说明：[RTAB_MAP.md](RTAB_MAP.md) · [cartographer.md](cartographer.md) · [orb.md](orb.md)。

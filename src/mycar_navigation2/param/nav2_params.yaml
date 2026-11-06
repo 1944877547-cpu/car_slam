@@ -139,7 +139,7 @@ controller_server:
       min_vel_y: 0.0
       max_vel_x: 0.25
       max_vel_y: 0.0
-      max_vel_theta: 1.20
+      max_vel_theta: 1.60  # 导航转向上限，与平滑器、底盘限速一致
       min_speed_xy: 0.0
       max_speed_xy: 0.25
       min_speed_theta: 0.0
@@ -311,7 +311,7 @@ behavior_server:
     robot_base_frame: base_link
     transform_tolerance: 0.5
     simulate_ahead_time: 2.0
-    max_rotational_vel: 1.20
+    max_rotational_vel: 1.60
     min_rotational_vel: 0.20
     rotational_acc_lim: 2.00
 
@@ -333,10 +333,10 @@ velocity_smoother:
     use_sim_time: false
     smoothing_frequency: 30.0
     scale_velocities: false
-    # 只表示用上次命令估算平滑器当前状态；STM32轮速PI仍是编码器闭环。
+    # 只表示用上次命令估算平滑器当前状态；STM32轮速PD仍是编码器闭环。
     feedback: OPEN_LOOP
-    max_velocity: [0.25, 0.0, 1.20]
-    min_velocity: [-0.10, 0.0, -1.20]
+    max_velocity: [0.25, 0.0, 1.60]
+    min_velocity: [-0.10, 0.0, -1.60]
     max_accel: [0.50, 0.0, 2.00]
     max_decel: [-0.50, 0.0, -2.00]
     odom_topic: /odom

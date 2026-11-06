@@ -1,0 +1,24 @@
+/**:
+  ros__parameters:
+    # 相机内参、分辨率、畸变从CameraInfo读取，不套用TUM/RealSense内参。
+    rgb_topic: /camera/color/image_raw
+    depth_topic: /camera/depth/image_raw
+    camera_info_topic: /camera/color/camera_info
+    base_frame: base_link
+    map_frame: orb_map
+    # 独立测试TF，避免与现有map/odom/base_link定位链路争抢父节点。
+    output_frame: orb_base_link
+    publish_tf: true
+    # 16UC1深度单位：当前Orbbec驱动已启用毫米输出；32FC1按米读取。
+    depth_scale: 0.001
+    sync_tolerance: 0.02
+    fps: 30.0
+    features: 1200
+    # RGB-D虚拟双目观测模型参数，不代表相机安装外参。
+    virtual_baseline: 0.05
+    close_depth: 4.0
+    visualization_rate: 5.0
+    max_path_size: 3000
+    viewer: false
+    localization: false
+    atlas_name: atlas

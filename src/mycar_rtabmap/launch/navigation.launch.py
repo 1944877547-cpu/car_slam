@@ -13,7 +13,7 @@ def generate_launch_description():
     defaults = {
         'database': str(Path.home() / 'car_swarm/maps/rtabmap_lidar.db'),
         'use_sim_time': 'false', 'start_base': 'true', 'start_rviz': 'true',
-        'serial_port': '/dev/ttyCH341USB0', 'baud_rate': '115200', 'max_rpm': '100.0',
+        'serial_port': '/dev/ttyCH341USB0', 'baud_rate': '115200', 'max_rpm': '120.0',
         'imu_port': '/dev/ttyTHS1', 'imu_baud': '115200', 'imu_rate': '20',
         'lidar_port': '/dev/ttyCH343USB0', 'start_lidar': 'true',
         'params_file': share + '/config/rtabmap.yaml',

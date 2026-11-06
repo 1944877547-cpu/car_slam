@@ -1,4 +1,4 @@
-// 底盘硬件桥：上接ros2_control，下接STM32；轮速PI在MCU内执行。
+// 底盘硬件桥：上接ros2_control，下接STM32；轮速PD在MCU内执行。
 // 使用说明见项目根目录 RTAB_MAP.md 和 cartographer.md。
 
 #include "mycar_base/mycar_system.hpp"
@@ -55,7 +55,7 @@ speed_t baud_value(int baud)
 
 namespace mycar_base
 {
-// 插件卸载时尽力发送零速，再关闭串口；下位机另有独立命令超时停车。
+// 插件卸载时尽力发送零速，再关闭串口。
 MyCarSystem::~MyCarSystem()
 {
   if (serial_fd_ >= 0) {
@@ -90,7 +90,7 @@ hardware_interface::CallbackReturn MyCarSystem::on_init(const hardware_interface
     const auto it = info_.hardware_parameters.find("serial_port");
     serial_port_ = it == info_.hardware_parameters.end() ? "/dev/ttyUSB0" : it->second;
     baud_rate_ = integer(info_, "baud_rate", 115200);
-    max_rpm_ = number(info_, "max_rpm", 100.0);
+    max_rpm_ = number(info_, "max_rpm", 120.0);
     encoder_cpr_ = number(info_, "encoder_cpr", 1468.2);
     feedback_timeout_ms_ = integer(info_, "feedback_timeout_ms", 500);
     baud_value(baud_rate_);
@@ -98,7 +98,7 @@ hardware_interface::CallbackReturn MyCarSystem::on_init(const hardware_interface
     RCLCPP_ERROR(logger, "Invalid hardware parameter: %s", e.what());
     return CallbackReturn::ERROR;
   }
-  if (!std::isfinite(max_rpm_) || max_rpm_ <= 0.0 || max_rpm_ > 100.0 ||
+  if (!std::isfinite(max_rpm_) || max_rpm_ <= 0.0 || max_rpm_ > 120.0 ||
     !std::isfinite(encoder_cpr_) || encoder_cpr_ <= 0.0 ||
     feedback_timeout_ms_ <= 0)
   {
@@ -253,7 +253,7 @@ bool MyCarSystem::send_wheel_command(double left, double right)
   const double scale = peak > limit ? limit / peak : 1.0;
   std::array<int16_t, 2> rpm{};
   for (std::size_t i = 0; i < 2; ++i) {
-    // 单位0.1 RPM，保留低速指令；PWM和编码器PI全部由STM32处理。
+    // 单位0.1 RPM，保留低速指令；PWM和编码器PD全部由STM32处理。
     const double value = std::clamp(command[i] * scale * rpm_per_rad_s, -max_rpm_, max_rpm_);
     rpm[i] = static_cast<int16_t>(std::lround(value * 10.0));
   }

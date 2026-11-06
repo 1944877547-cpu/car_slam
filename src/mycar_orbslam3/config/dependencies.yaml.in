@@ -1,0 +1,2 @@
+# 编译时写入本机词典路径，NX重新编译后自动使用NX上的路径。
+vocabulary: '@ORB_SLAM3_ROOT@/Vocabulary/ORBvoc.txt'

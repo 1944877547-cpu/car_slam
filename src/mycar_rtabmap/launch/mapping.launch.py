@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -16,8 +16,8 @@ def start(context):
     sim = ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool)
     localization = LaunchConfiguration('localization').perform(context).lower() == 'true'
     database = Path(LaunchConfiguration('database').perform(context)).expanduser().resolve()
-    if localization and not database.is_file():
-        raise RuntimeError('Localization requires an existing lidar database: ' + str(database))
+    if localization and (not database.is_file() or database.stat().st_size == 0):
+        raise RuntimeError('Localization requires a saved, non-empty lidar database: ' + str(database))
     database.parent.mkdir(parents=True, exist_ok=True)
 
     # 底盘只负责电机、编码器关节状态和传感器；关闭原轮式+IMU EKF。
@@ -60,7 +60,9 @@ def start(context):
         condition=IfCondition(LaunchConfiguration('start_rviz')), output='screen',
         arguments=['-d', LaunchConfiguration('rviz_config')], parameters=[{'use_sim_time': sim}],
     )
-    return [base, icp, ekf, slam, rviz]
+    # 输出实际保存/读取路径，方便确认导航没有误用旧地图。
+    mode = 'localization (saved map)' if localization else 'mapping (save on clean exit)'
+    return [LogInfo(msg=f'RTAB-Map {mode}: {database}'), base, icp, ekf, slam, rviz]
 
 
 def generate_launch_description():
@@ -72,7 +74,7 @@ def generate_launch_description():
         'params_file': share + '/config/rtabmap.yaml',
         'rviz_config': share + '/rviz/navigation.rviz',
         'start_base': 'true', 'start_rviz': 'true',
-        'serial_port': '/dev/ttyCH341USB0', 'baud_rate': '115200', 'max_rpm': '100.0',
+        'serial_port': '/dev/ttyCH341USB0', 'baud_rate': '115200', 'max_rpm': '120.0',
         'imu_port': '/dev/ttyTHS1', 'imu_baud': '115200', 'imu_rate': '20',
         'lidar_port': '/dev/ttyCH343USB0', 'start_lidar': 'true',
     }

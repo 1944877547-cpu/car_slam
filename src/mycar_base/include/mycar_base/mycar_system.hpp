@@ -36,7 +36,7 @@ private:
   int serial_fd_{-1};
   std::string serial_port_;
   int baud_rate_{115200};
-  double max_rpm_{100.0};
+  double max_rpm_{120.0};
   double encoder_cpr_{1468.2};
   int feedback_timeout_ms_{500};
   // 以下数组均固定为[左轮, 右轮]：position单位rad，velocity/command单位rad/s。
